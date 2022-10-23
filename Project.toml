@@ -3,6 +3,11 @@ uuid = "dfcd5af1-1e31-431a-b1a1-3c72ddca0e1b"
 authors = ["Johannes Feist <johannes.feist@gmail.com> and contributors"]
 version = "0.1.0"
 
+[deps]
+DataInterpolations = "82cc6244-b520-54b8-b5a6-8a565e85f1d0"
+DelimitedFiles = "8bb1440f-4735-579b-a4ab-409b98df4dab"
+SpecialFunctions = "276daf66-3868-5448-9aa4-cd146d93841b"
+
 [compat]
 julia = "1.6"
 
