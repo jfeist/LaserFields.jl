@@ -4,7 +4,19 @@ using SpecialFunctions
 using DelimitedFiles
 using DataInterpolations
 
+export make_laser_field, E_field, A_field, E_fourier, A_fourier, start_time, end_time
+
 const GAUSSIAN_TIME_CUTOFF_SIGMA = 3.5*sqrt(log(256))
+const au_as   = 1/24.188843265     # attosecond in a.u.
+const au_wcm2toel2 = 1/3.509338e16 # W/cm^2 in a.u. for electric field squared
+const au_wcm2 = 1.55369e-16        # W/cm^2 in a.u
+const au_m    = 1/5.291772098e-11  # m in a.u.
+const au_cm   = 1/5.291772098e-9   # cm in a.u.
+const au_nm   = 1/5.291772098e-2   # nm in a.u.
+const au_c    = 137.03599911       # c (speed of light) in a.u. == 1/alpha
+const au_eV   = 1/27.2113845       # eV in a.u.
+const au_m_He = 7294.2995365       # m of He-nucleus in a.u.
+const au_m_n  = 1838.6836605       # m of neutron in a.u.
 
 abstract type LaserField end
 Base.Broadcast.broadcastable(lf::LaserField) = Ref(lf)
@@ -45,7 +57,9 @@ end
 TX(lf::LaserField) = 2π/lf.omega
 get_omega(lf::LaserField,t) = lf.omega + lf.chirp*(t-lf.peak_time)
 
-function E(lf::LaserField,t)
+(lf::LaserField)(t) = lf.is_vecpot ? A_field(lf,t) : E_field(lf,t)
+
+function E_field(lf::LaserField,t)
     env, envpr = envelope(lf,t)
     omega = get_omega(lf,t)
     osc   = sin(omega*(t-lf.peak_time) + π*lf.phase_pi)
@@ -58,8 +72,8 @@ function E(lf::LaserField,t)
     end
 end
 
-function A(lf::LaserField,t)
-    lf.is_vecpot || throw(ArgumentError("laser field is not given as a vector potential, cannot get A(t) analytically!"))
+function A_field(lf::LaserField,t)
+    lf.is_vecpot || error("laser field is not given as a vector potential, cannot get A(t) analytically!")
 
     env, envpr = envelope(lf,t)
     omega = get_omega(lf,t)
@@ -122,7 +136,6 @@ function envelope_fourier(lf::GaussianLaserField,omega)
 end
 start_time(lf::GaussianLaserField) = lf.peak_time - GAUSSIAN_TIME_CUTOFF_SIGMA*lf.duration
 end_time(  lf::GaussianLaserField) = lf.peak_time + GAUSSIAN_TIME_CUTOFF_SIGMA*lf.duration
-
 
 function expiatbt2_intT(a,b,T)
     # returns the result of the integral Int(exp(i*(a*t+b*t**2)),{t,-T/2,T/2}) / sqrt(2*pi)
@@ -293,7 +306,82 @@ end
 start_time(lf::InterpolatingLaserField) = lf.start_time
 end_time(  lf::InterpolatingLaserField) = lf.end_time
 
-E(lf::InterpolatingLaserField,t) = (start_time(lf) <= t <= end_time(lf)) ? lf.Efun(t) : 0.
-A(lf::InterpolatingLaserField,t) = (start_time(lf) <= t <= end_time(lf)) ? lf.Afun(t) : 0.
+E_field(lf::InterpolatingLaserField,t) = (start_time(lf) <= t <= end_time(lf)) ? lf.Efun(t) : 0.
+A_field(lf::InterpolatingLaserField,t) = (start_time(lf) <= t <= end_time(lf)) ? lf.Afun(t) : 0.
+
+function make_laser_field(; form::Symbol, is_vecpot, phase_pi=0, pargs...)
+    args = values(pargs)
+    if form == :readin
+        return InterpolatingLaserField(; is_vecpot=is_vecpot, datafile=args.datafile)
+    end
+
+    E0 = if haskey(args,:E0)
+        haskey(args,:intensity_Wcm2) && error("Cannot specify both E0 and intensity_Wcm2")
+        args.E0
+    else
+        sqrt(args.intensity_Wcm2 * au_wcm2toel2)
+    end
+
+    omega = if haskey(args,:omega)
+        haskey(args,:lambda_nm) && error("Cannot specify both omega and lambda_nm")
+        args.omega
+    else
+        2π*au_c / (args.lambda_nm * au_nm)
+    end
+
+    chirp = if haskey(args,:chirp)
+        haskey(args,:linear_chirp_rate_w0as) && error("Cannot specify both chirp and linear_chirp_rate_w0as")
+        args.chirp
+    elseif haskey(args,:linear_chirp_rate_w0as)
+        omega * args.linear_chirp_rate_w0as / au_as
+    else
+        0
+    end
+
+    peak_time = if haskey(args,:peak_time)
+        haskey(args,:peak_time_as) && error("Cannot specify both peak_time and peak_time_as")
+        args.peak_time
+    else
+        args.peak_time_as * au_as
+    end
+
+    duration = if haskey(args,:duration)
+        haskey(args,:duration_as) && error("Cannot specify both duration and duration_as")
+        args.duration
+    else
+        args.duration_as * au_as
+    end
+
+    rampon = if haskey(args,:rampon)
+        haskey(args,:rampon_as) && error("Cannot specify both rampon and rampon_as")
+        args.rampon
+    elseif haskey(args,:rampon_as)
+        args.rampon_as * au_as
+    else
+        0
+    end
+    kwargs = Dict(pairs((is_vecpot=is_vecpot, phase_pi=phase_pi, E0=E0, omega=omega,
+                         peak_time=peak_time, duration=duration, chirp=chirp)))
+    if   form in (:gaussian,:gaussianF)
+        # convert from FWHM of field to standard deviation of field
+        kwargs[:duration] /= sqrt(log(256))
+        return GaussianLaserField(; kwargs...)
+    elseif form in (:gaussian2,:gaussianI)
+        # convert from FWHM of intensity to standard deviation of field
+        kwargs[:duration] /= sqrt(log(16))
+        return GaussianLaserField(; kwargs...)
+    elseif form == :linear
+        kwargs[:rampon] = rampon
+        return LinearFlatTopLaserField(; kwargs...)
+    elseif form == :linear2
+        kwargs[:rampon] = rampon
+        return Linear2FlatTopLaserField(; kwargs...)
+    elseif form in (:sin2,:sin4,:sin_exp)
+        kwargs[:exponent] = form==:sin2 ? 2 : (form==:sin4 ? 4 : args.form_exponent)
+        return SinExpLaserField(; kwargs...)
+    else
+        error("Unknown laser field form '$form'")
+    end
+end
 
 end
