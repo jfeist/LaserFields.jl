@@ -311,10 +311,10 @@ end_time(  lf::InterpolatingLaserField) = lf.end_time
 E_field(lf::InterpolatingLaserField,t) = (start_time(lf) <= t <= end_time(lf)) ? lf.Efun(t) : 0.
 A_field(lf::InterpolatingLaserField,t) = (start_time(lf) <= t <= end_time(lf)) ? lf.Afun(t) : 0.
 
-function make_laser_field(; form::Symbol, is_vecpot, phase_pi=0, pargs...)
+function make_laser_field(; form::String, is_vecpot::Bool, phase_pi=0, pargs...)
     args = values(pargs)
-    if form == :readin
-        return InterpolatingLaserField(; is_vecpot=is_vecpot, datafile=args.datafile)
+    if form == "readin"
+        return InterpolatingLaserField(args.datafile; is_vecpot=is_vecpot)
     end
 
     E0 = if haskey(args,:E0)
@@ -340,9 +340,9 @@ function make_laser_field(; form::Symbol, is_vecpot, phase_pi=0, pargs...)
         0
     end
 
-    t0 = if haskey(args,:t0)
-        haskey(args,:peak_time_as) && error("Cannot specify both t0 and peak_time_as")
-        args.t0
+    peak_time = if haskey(args,:peak_time)
+        haskey(args,:peak_time_as) && error("Cannot specify both peak_time and peak_time_as")
+        args.peak_time
     else
         args.peak_time_as * au_as
     end
@@ -363,23 +363,23 @@ function make_laser_field(; form::Symbol, is_vecpot, phase_pi=0, pargs...)
         0
     end
     kwargs = Dict(pairs((is_vecpot=is_vecpot, phase_pi=phase_pi, E0=E0, ω0=omega,
-                         t0=t0, duration=duration, chirp=chirp)))
-    if   form in (:gaussian,:gaussianF)
+                         t0=peak_time, duration=duration, chirp=chirp)))
+    if   form in ("gaussian","gaussianF")
         # convert from FWHM of field to standard deviation of field
         kwargs[:duration] /= sqrt(log(256))
         return GaussianLaserField(; kwargs...)
-    elseif form in (:gaussian2,:gaussianI)
+    elseif form in ("gaussian2","gaussianI")
         # convert from FWHM of intensity to standard deviation of field
         kwargs[:duration] /= sqrt(log(16))
         return GaussianLaserField(; kwargs...)
-    elseif form == :linear
+    elseif form == "linear"
         kwargs[:rampon] = rampon
         return LinearFlatTopLaserField(; kwargs...)
-    elseif form == :linear2
+    elseif form == "linear2"
         kwargs[:rampon] = rampon
         return Linear2FlatTopLaserField(; kwargs...)
-    elseif form in (:sin2,:sin4,:sin_exp)
-        kwargs[:exponent] = form==:sin2 ? 2 : (form==:sin4 ? 4 : args.form_exponent)
+    elseif form in ("sin2","sin4","sin_exp")
+        kwargs[:exponent] = form=="sin2" ? 2 : (form=="sin4" ? 4 : args.form_exponent)
         return SinExpLaserField(; kwargs...)
     else
         error("Unknown laser field form '$form'")

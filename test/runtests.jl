@@ -54,4 +54,13 @@ using Test
         @test start_time(lf) == 0.0
         @test end_time(lf) == 700.0
     end
+
+    let lf = make_laser_field(form="gaussianI", is_vecpot=true, phase_pi=0.5, duration_as=100.,
+                              peak_time_as=400, intensity_Wcm2=1e14, lambda_nm=12., linear_chirp_rate_w0as=0.)
+        @test lf isa GaussianLaserField
+        @test lf.is_vecpot == true
+        @test lf.duration == 100. * LaserFields.au_as / sqrt(log(16.))
+        @test lf.t0 == 400. * LaserFields.au_as
+        @test lf(lf.t0) == lf.E0/lf.ω0
+    end
 end
