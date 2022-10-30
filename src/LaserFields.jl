@@ -26,7 +26,7 @@ macro _standard_lf_props()
             is_vecpot::Bool
             E0::T1
             ω0::T2
-            peak_time::T3
+            t0::T3
             duration::T4
             chirp::T5
             phase_pi::T6
@@ -55,17 +55,17 @@ Base.@kwdef struct Linear2FlatTopLaserField{T1,T2,T3,T4,T5,T6,T7} <: FlatTopLase
 end
 
 TX(lf::LaserField) = 2π/lf.ω0
-get_ωt(lf::LaserField,t) = lf.ω0 + lf.chirp*(t-lf.peak_time)
+get_ωt(lf::LaserField,t) = lf.ω0 + lf.chirp*(t-lf.t0)
 
 (lf::LaserField)(t) = lf.is_vecpot ? A_field(lf,t) : E_field(lf,t)
 
 function E_field(lf::LaserField,t)
     env, envpr = envelope(lf,t)
     ω = get_ωt(lf,t)
-    osc   = sin(ω*(t-lf.peak_time) + π*lf.phase_pi)
+    osc   = sin(ω*(t-lf.t0) + π*lf.phase_pi)
     if lf.is_vecpot
         # d(w(t)*(t-peak))/dt = w(t) + w'(t)*(t-peak) = ω + lf.ω0 * lf.chirp * (t-tpeak) = 2ω - lf.ω0
-        oscpr = (2ω-lf.ω0)*cos(ω*(t-lf.peak_time)+π*lf.phase_pi)
+        oscpr = (2ω-lf.ω0)*cos(ω*(t-lf.t0)+π*lf.phase_pi)
         return -(env * oscpr + envpr * osc) / lf.ω0
     else  # describes electric field directly
         return env * osc
@@ -77,7 +77,7 @@ function A_field(lf::LaserField,t)
 
     env, envpr = envelope(lf,t)
     ω = get_ωt(lf,t)
-    osc = sin(ω * (t-lf.peak_time) + π*lf.phase_pi)
+    osc = sin(ω * (t-lf.t0) + π*lf.phase_pi)
     # Divide out derivative of oscillation to ensure peak amplitude of E0 for electric field
     return env*osc / lf.ω0
 end
@@ -109,8 +109,8 @@ function E_fourier(lf::LaserField,ω)
             - (envelope_fourier(lf,-ω-lf.ω0) * cispi(lf.phase_pi))') / 2im
 
     # the fourier transform of the part was determined as if it was centered around t=0
-    # shift in time now -- just adds a phase exp(-im*ω*peak_time), as F[f(t-a)] = exp(-im*ω*a) F[f(t)]
-    ELFT *= cis(-ω*lf.peak_time)
+    # shift in time now -- just adds a phase exp(-im*ω*t0), as F[f(t-a)] = exp(-im*ω*a) F[f(t)]
+    ELFT *= cis(-ω*lf.t0)
 
     if lf.is_vecpot
         # if this laser field was defined as a vector potential, we need to multiply
@@ -125,8 +125,8 @@ end
 A_fourier(lf::LaserField,ω) = E_fourier(lf,ω) / (-1im*ω)
 
 function envelope(lf::GaussianLaserField,t)
-    env   = lf.E0 * exp(-(t-lf.peak_time)^2/(2*lf.duration^2))
-    envpr = env * (lf.peak_time-t)/lf.duration^2
+    env   = lf.E0 * exp(-(t-lf.t0)^2/(2*lf.duration^2))
+    envpr = env * (lf.t0-t)/lf.duration^2
     return env,envpr
 end
 function envelope_fourier(lf::GaussianLaserField,ω)
@@ -134,8 +134,8 @@ function envelope_fourier(lf::GaussianLaserField,ω)
     z = 0.5/lf.duration^2 - 1im*lf.chirp
     return lf.E0 * exp(-ω^2/4z) / sqrt(2z)
 end
-start_time(lf::GaussianLaserField) = lf.peak_time - GAUSSIAN_TIME_CUTOFF_SIGMA*lf.duration
-end_time(  lf::GaussianLaserField) = lf.peak_time + GAUSSIAN_TIME_CUTOFF_SIGMA*lf.duration
+start_time(lf::GaussianLaserField) = lf.t0 - GAUSSIAN_TIME_CUTOFF_SIGMA*lf.duration
+end_time(  lf::GaussianLaserField) = lf.t0 + GAUSSIAN_TIME_CUTOFF_SIGMA*lf.duration
 
 function expiatbt2_intT(a,b,T)
     # returns the result of the integral Int(exp(i*(a*t+b*t**2)),{t,-T/2,T/2}) / sqrt(2π)
@@ -150,7 +150,7 @@ function expiatbt2_intT(a,b,T)
 end
 
 function envelope(lf::SinExpLaserField,t)
-    trel = (t-lf.peak_time)/lf.duration
+    trel = (t-lf.t0)/lf.duration
     if abs(trel) > 0.5
         env   = 0.
         envpr = 0.
@@ -202,13 +202,13 @@ function envelope_fourier(lf::SinExpLaserField,ω)
     end
 end
 
-start_time(lf::SinExpLaserField) = lf.peak_time - lf.duration/2
-end_time(  lf::SinExpLaserField) = lf.peak_time + lf.duration/2
+start_time(lf::SinExpLaserField) = lf.t0 - lf.duration/2
+end_time(  lf::SinExpLaserField) = lf.t0 + lf.duration/2
 
-start_time(lf::FlatTopLaserField)      = lf.peak_time - lf.duration/2 - lf.rampon
-end_time(  lf::FlatTopLaserField)      = lf.peak_time + lf.duration/2 + lf.rampon
-flat_start_time(lf::FlatTopLaserField) = lf.peak_time - lf.duration/2
-flat_end_time(  lf::FlatTopLaserField) = lf.peak_time + lf.duration/2
+start_time(lf::FlatTopLaserField)      = lf.t0 - lf.duration/2 - lf.rampon
+end_time(  lf::FlatTopLaserField)      = lf.t0 + lf.duration/2 + lf.rampon
+flat_start_time(lf::FlatTopLaserField) = lf.t0 - lf.duration/2
+flat_end_time(  lf::FlatTopLaserField) = lf.t0 + lf.duration/2
 
 function envelope(lf::FlatTopLaserField,t)
     # for linear field, the peak time is the middle of the interval
@@ -281,13 +281,13 @@ function InterpolatingLaserField(datafile; is_vecpot)
     TX = Inf
     E0 = 0.
     Eprev = Efun(tt[1])
-    peak_time = 0.
+    t0 = 0.
     lastzerocrossing = -Inf
     for t in LinRange(tt[1],tt[end],20*length(tt))
         E = Efun(t)
         if abs(E) > E0
             E0 = abs(E)
-            peak_time = t
+            t0 = t
         end
         if sign(E) != sign(Eprev)
             TX = min(TX,2*(t-lastzerocrossing))
@@ -302,7 +302,7 @@ function InterpolatingLaserField(datafile; is_vecpot)
     chirp = 0.
     phase_pi = 0.
 
-    InterpolatingLaserField(; is_vecpot,E0,ω0,peak_time,duration,chirp,phase_pi,datafile,Efun,Afun,start_time,end_time)
+    InterpolatingLaserField(; is_vecpot,E0,ω0,t0,duration,chirp,phase_pi,datafile,Efun,Afun,start_time,end_time)
 end
 
 start_time(lf::InterpolatingLaserField) = lf.start_time
@@ -340,9 +340,9 @@ function make_laser_field(; form::Symbol, is_vecpot, phase_pi=0, pargs...)
         0
     end
 
-    peak_time = if haskey(args,:peak_time)
-        haskey(args,:peak_time_as) && error("Cannot specify both peak_time and peak_time_as")
-        args.peak_time
+    t0 = if haskey(args,:t0)
+        haskey(args,:peak_time_as) && error("Cannot specify both t0 and peak_time_as")
+        args.t0
     else
         args.peak_time_as * au_as
     end
@@ -363,7 +363,7 @@ function make_laser_field(; form::Symbol, is_vecpot, phase_pi=0, pargs...)
         0
     end
     kwargs = Dict(pairs((is_vecpot=is_vecpot, phase_pi=phase_pi, E0=E0, ω0=omega,
-                         peak_time=peak_time, duration=duration, chirp=chirp)))
+                         t0=t0, duration=duration, chirp=chirp)))
     if   form in (:gaussian,:gaussianF)
         # convert from FWHM of field to standard deviation of field
         kwargs[:duration] /= sqrt(log(256))
