@@ -28,8 +28,8 @@ macro _standard_lf_props()
             ω0::T2
             t0::T3
             duration::T4
-            chirp::T5
-            phase_pi::T6
+            ϕ0::T5
+            chirp::T6
     end)
 end
 
@@ -55,17 +55,17 @@ Base.@kwdef struct Linear2FlatTopLaserField{T1,T2,T3,T4,T5,T6,T7} <: FlatTopLase
 end
 
 TX(lf::LaserField) = 2π/lf.ω0
-get_ωt(lf::LaserField,t) = lf.ω0 + lf.chirp*(t-lf.t0)
 
 (lf::LaserField)(t) = lf.is_vecpot ? A_field(lf,t) : E_field(lf,t)
 
 function E_field(lf::LaserField,t)
-    env, envpr = envelope(lf,t)
-    ω = get_ωt(lf,t)
-    osc   = sin(ω*(t-lf.t0) + π*lf.phase_pi)
+    tr = t - lf.t0
+    env, envpr = envelope(lf,tr)
+    phit = lf.ϕ0 + lf.ω0*tr + lf.chirp*tr^2
+    osc   = sin(phit)
     if lf.is_vecpot
         # d(w(t)*(t-peak))/dt = w(t) + w'(t)*(t-peak) = ω + lf.ω0 * lf.chirp * (t-tpeak) = 2ω - lf.ω0
-        oscpr = (2ω-lf.ω0)*cos(ω*(t-lf.t0)+π*lf.phase_pi)
+        oscpr = (lf.ω0 + 2lf.chirp*tr)*cos(phit)
         return -(env * oscpr + envpr * osc) / lf.ω0
     else  # describes electric field directly
         return env * osc
@@ -75,9 +75,9 @@ end
 function A_field(lf::LaserField,t)
     lf.is_vecpot || error("laser field is not given as a vector potential, cannot get A(t) analytically!")
 
-    env, envpr = envelope(lf,t)
-    ω = get_ωt(lf,t)
-    osc = sin(ω * (t-lf.t0) + π*lf.phase_pi)
+    tr = t - lf.t0
+    env, envpr = envelope(lf,tr)
+    osc = sin(lf.ϕ0 + lf.ω0*tr + lf.chirp*tr^2)
     # Divide out derivative of oscillation to ensure peak amplitude of E0 for electric field
     return env*osc / lf.ω0
 end
@@ -105,8 +105,8 @@ function E_fourier(lf::LaserField,ω)
     # F[f(t) exp(im ω0 t)](ω) = F[f(t)](ω-ω0)
     # complex conjugation of the transformed function gives complex conjugation + reversal of the argument in the transform, so
     # F[conjg(f(t) exp(im ω0 t))](ω) = conjg(F[f(t) exp(IU ω0 t)](-ω)) = conjg(F[f(t)](-ω-ω0))
-    ELFT = (   envelope_fourier(lf, ω-lf.ω0) * cispi(lf.phase_pi)
-            - (envelope_fourier(lf,-ω-lf.ω0) * cispi(lf.phase_pi))') / 2im
+    ELFT = (   envelope_fourier(lf, ω-lf.ω0) * cis(lf.ϕ0)
+            - (envelope_fourier(lf,-ω-lf.ω0) * cis(lf.ϕ0))') / 2im
 
     # the fourier transform of the part was determined as if it was centered around t=0
     # shift in time now -- just adds a phase exp(-im*ω*t0), as F[f(t-a)] = exp(-im*ω*a) F[f(t)]
@@ -124,9 +124,9 @@ end
 
 A_fourier(lf::LaserField,ω) = E_fourier(lf,ω) / (-1im*ω)
 
-function envelope(lf::GaussianLaserField,t)
-    env   = lf.E0 * exp(-(t-lf.t0)^2/(2*lf.duration^2))
-    envpr = env * (lf.t0-t)/lf.duration^2
+function envelope(lf::GaussianLaserField,tr)
+    env   = lf.E0 * exp(-tr^2/(2*lf.duration^2))
+    envpr = -env * tr/lf.duration^2
     return env,envpr
 end
 function envelope_fourier(lf::GaussianLaserField,ω)
@@ -149,8 +149,8 @@ function expiatbt2_intT(a,b,T)
     return res * sign(b)
 end
 
-function envelope(lf::SinExpLaserField,t)
-    trel = (t-lf.t0)/lf.duration
+function envelope(lf::SinExpLaserField,tr)
+    trel = tr/lf.duration
     if abs(trel) > 0.5
         env   = 0.
         envpr = 0.
@@ -207,27 +207,18 @@ end_time(  lf::SinExpLaserField) = lf.t0 + lf.duration/2
 
 start_time(lf::FlatTopLaserField)      = lf.t0 - lf.duration/2 - lf.rampon
 end_time(  lf::FlatTopLaserField)      = lf.t0 + lf.duration/2 + lf.rampon
-flat_start_time(lf::FlatTopLaserField) = lf.t0 - lf.duration/2
-flat_end_time(  lf::FlatTopLaserField) = lf.t0 + lf.duration/2
 
-function envelope(lf::FlatTopLaserField,t)
+function envelope(lf::FlatTopLaserField,tr)
     # for linear field, the peak time is the middle of the interval
-    if t < start_time(lf)
+    if abs(tr) > lf.duration/2 + lf.rampon
         env   = 0.
         envpr = 0.
-    elseif t < flat_start_time(lf)
-        trel  = (t-start_time(lf))/lf.rampon
+    elseif abs(tr) > lf.duration/2
+        trel  = (lf.rampon + lf.duration/2 - abs(tr))/lf.rampon
         env   = ramponfunc(lf,trel)
-        envpr = ramponfuncpr(lf,trel) / lf.rampon
-    elseif t < flat_end_time(lf)
-        env   = 1.
-        envpr = 0.
-    elseif t < end_time(lf)
-        trel = (end_time(lf) - t)/lf.rampon
-        env   = ramponfunc(lf,trel)
-        envpr = -ramponfuncpr(lf,trel) / lf.rampon
+        envpr = -sign(tr)*ramponfuncpr(lf,trel) / lf.rampon
     else
-        env   = 0.
+        env   = 1.
         envpr = 0.
     end
     return lf.E0 .* (env,envpr)
@@ -300,9 +291,9 @@ function InterpolatingLaserField(datafile; is_vecpot)
     ω0 = 2π / TX
     duration = tt[end] - tt[1]
     chirp = 0.
-    phase_pi = 0.
+    ϕ0 = 0.
 
-    InterpolatingLaserField(; is_vecpot,E0,ω0,t0,duration,chirp,phase_pi,datafile,Efun,Afun,start_time,end_time)
+    InterpolatingLaserField(; is_vecpot,E0,ω0,t0,duration,chirp,ϕ0,datafile,Efun,Afun,start_time,end_time)
 end
 
 start_time(lf::InterpolatingLaserField) = lf.start_time
@@ -362,7 +353,7 @@ function make_laser_field(; form::String, is_vecpot::Bool, phase_pi=0, pargs...)
     else
         0
     end
-    kwargs = Dict(pairs((is_vecpot=is_vecpot, phase_pi=phase_pi, E0=E0, ω0=omega,
+    kwargs = Dict(pairs((is_vecpot=is_vecpot, ϕ0=π*phase_pi, E0=E0, ω0=omega,
                          t0=peak_time, duration=duration, chirp=chirp)))
     if   form in ("gaussian","gaussianF")
         # convert from FWHM of field to standard deviation of field

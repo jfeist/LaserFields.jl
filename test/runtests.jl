@@ -1,12 +1,11 @@
 using LaserFields
-using LaserFields: get_ωt
 using Test
 
 @testset "LaserFields.jl" begin
     using LaserFields
     using LaserFields: GaussianLaserField, SinExpLaserField, LinearFlatTopLaserField, Linear2FlatTopLaserField, InterpolatingLaserField
 
-    general_args = (is_vecpot=true, E0=1.5, ω0=0.12, t0=500., chirp=0., phase_pi=0.8)
+    general_args = (is_vecpot=true, E0=1.5, ω0=0.12, t0=500., chirp=0., ϕ0=0.8π)
     test_fields = [
         GaussianLaserField(;      general_args..., duration=100.),
         SinExpLaserField(;        general_args..., duration=800., exponent=2),
@@ -22,11 +21,7 @@ using Test
         @test lf.ω0 == 0.12
         @test lf.t0 == 500
         @test lf.chirp == 0.0
-        @test lf.phase_pi == 0.8
-
-        @test get_ωt(lf,   0.) == 0.12
-        @test get_ωt(lf, 500.) == 0.12
-        @test get_ωt(lf, 600.) == 0.12
+        @test lf.ϕ0 == 0.8π
     end
 
     let lf = InterpolatingLaserField("laserdat.dat", is_vecpot=true)
@@ -35,7 +30,7 @@ using Test
         @test lf.ω0 == 0.16132596121126513
         @test lf.t0 == 353.37042585063125
         @test lf.duration == 700.0
-        @test lf.phase_pi == 0.0
+        @test lf.ϕ0 == 0.0
         @test lf.chirp == 0.0
         @test lf.datafile == "laserdat.dat"
         @test start_time(lf) == 0.0
@@ -48,7 +43,7 @@ using Test
         @test lf.ω0 == 0.16009446532415655
         @test lf.t0 == 343.63364005991866
         @test lf.duration == 700.0
-        @test lf.phase_pi == 0.0
+        @test lf.ϕ0 == 0.0
         @test lf.chirp == 0.0
         @test lf.datafile == "laserdat.dat"
         @test start_time(lf) == 0.0
@@ -62,5 +57,6 @@ using Test
         @test lf.duration == 100. * LaserFields.au_as / sqrt(log(16.))
         @test lf.t0 == 400. * LaserFields.au_as
         @test lf(lf.t0) == lf.E0/lf.ω0
+        @test lf.ϕ0 == 0.5π
     end
 end
