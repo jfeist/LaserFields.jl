@@ -32,31 +32,6 @@ macro _standard_lf_props()
     end)
 end
 
-Base.@kwdef struct GaussianLaserField{T1,T2,T3,T4,T5,T6} <: LaserField
-    @_standard_lf_props
-    σ::T6
-end
-
-Base.@kwdef struct SinExpLaserField{T1,T2,T3,T4,T5,T6,T7} <: LaserField
-    @_standard_lf_props
-    T::T6
-    exponent::T7
-end
-
-abstract type FlatTopLaserField <: LaserField end
-
-Base.@kwdef struct LinearFlatTopLaserField{T1,T2,T3,T4,T5,T6,T7} <: FlatTopLaserField
-    @_standard_lf_props
-    Tflat::T6
-    Tramp::T7
-end
-
-Base.@kwdef struct Linear2FlatTopLaserField{T1,T2,T3,T4,T5,T6,T7} <: FlatTopLaserField
-    @_standard_lf_props
-    Tflat::T6
-    Tramp::T7
-end
-
 TX(lf::LaserField) = 2π/lf.ω0
 
 (lf::LaserField)(t) = lf.is_vecpot ? A_field(lf,t) : E_field(lf,t)
@@ -127,6 +102,11 @@ end
 
 A_fourier(lf::LaserField,ω) = E_fourier(lf,ω) / (-1im*ω)
 
+Base.@kwdef struct GaussianLaserField{T1,T2,T3,T4,T5,T6} <: LaserField
+    @_standard_lf_props
+    σ::T6
+end
+
 function envelope(lf::GaussianLaserField,tr)
     env   = lf.E0 * exp(-tr^2/(2*lf.σ^2))
     envpr = -env * tr/lf.σ^2
@@ -139,6 +119,12 @@ function envelope_fourier(lf::GaussianLaserField,ω)
 end
 start_time(lf::GaussianLaserField) = lf.t0 - GAUSSIAN_TIME_CUTOFF_SIGMA*lf.σ
 end_time(  lf::GaussianLaserField) = lf.t0 + GAUSSIAN_TIME_CUTOFF_SIGMA*lf.σ
+
+Base.@kwdef struct SinExpLaserField{T1,T2,T3,T4,T5,T6,T7} <: LaserField
+    @_standard_lf_props
+    T::T6
+    exponent::T7
+end
 
 function expiatbt2_intT(a,b,T)
     # returns the result of the integral Int(exp(i*(a*t+b*t**2)),{t,-T/2,T/2}) / sqrt(2π)
@@ -208,8 +194,22 @@ end
 start_time(lf::SinExpLaserField) = lf.t0 - lf.T/2
 end_time(  lf::SinExpLaserField) = lf.t0 + lf.T/2
 
-start_time(lf::FlatTopLaserField)      = lf.t0 - lf.Tflat/2 - lf.Tramp
-end_time(  lf::FlatTopLaserField)      = lf.t0 + lf.Tflat/2 + lf.Tramp
+abstract type FlatTopLaserField <: LaserField end
+
+Base.@kwdef struct LinearFlatTopLaserField{T1,T2,T3,T4,T5,T6,T7} <: FlatTopLaserField
+    @_standard_lf_props
+    Tflat::T6
+    Tramp::T7
+end
+
+Base.@kwdef struct Linear2FlatTopLaserField{T1,T2,T3,T4,T5,T6,T7} <: FlatTopLaserField
+    @_standard_lf_props
+    Tflat::T6
+    Tramp::T7
+end
+
+start_time(lf::FlatTopLaserField) = lf.t0 - lf.Tflat/2 - lf.Tramp
+end_time(  lf::FlatTopLaserField) = lf.t0 + lf.Tflat/2 + lf.Tramp
 
 function envelope(lf::FlatTopLaserField,tr)
     # for linear field, the peak time is the middle of the interval
@@ -227,10 +227,10 @@ function envelope(lf::FlatTopLaserField,tr)
     return lf.E0 .* (env,envpr)
 end
 
-ramponfunc(lf::LinearFlatTopLaserField,trel) = trel
-ramponfuncpr(lf::LinearFlatTopLaserField,trel) = 1.
-ramponfunc(lf::Linear2FlatTopLaserField,trel) = sin(π/2*trel)^2
-ramponfuncpr(lf::Linear2FlatTopLaserField,trel) = sin(π*trel) * π/2
+ramponfunc(::LinearFlatTopLaserField,trel) = trel
+ramponfuncpr(::LinearFlatTopLaserField,trel) = 1.
+ramponfunc(::Linear2FlatTopLaserField,trel) = sin(π/2*trel)^2
+ramponfuncpr(::Linear2FlatTopLaserField,trel) = sin(π*trel) * π/2
 
 function envelope_fourier(lf::LinearFlatTopLaserField,ω)
     lf.chirp == 0 || error("Fourier transform of 'linear' field with chirp not implemented!")
