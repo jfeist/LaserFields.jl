@@ -7,12 +7,12 @@ using Test
 
     general_args = (is_vecpot=true, E0=1.5, ω0=0.12, t0=500., chirp=0., ϕ0=0.8π)
     test_fields = [
-        GaussianLaserField(;      general_args..., duration=100.),
-        SinExpLaserField(;        general_args..., duration=800., exponent=2),
-        SinExpLaserField(;        general_args..., duration=800., exponent=4),
-        SinExpLaserField(;        general_args..., duration=800., exponent=7),
-        LinearFlatTopLaserField(; general_args..., duration=400., rampon=150),
-        Linear2FlatTopLaserField(;general_args..., duration=400., rampon=150),
+        GaussianLaserField(;      general_args..., σ=100.),
+        SinExpLaserField(;        general_args..., T=800., exponent=2),
+        SinExpLaserField(;        general_args..., T=800., exponent=4),
+        SinExpLaserField(;        general_args..., T=800., exponent=7),
+        LinearFlatTopLaserField(; general_args..., Tflat=400., Tramp=150),
+        Linear2FlatTopLaserField(;general_args..., Tflat=400., Tramp=150),
     ]
 
     for lf in test_fields
@@ -54,7 +54,7 @@ using Test
                               peak_time_as=400, intensity_Wcm2=1e14, lambda_nm=12., linear_chirp_rate_w0as=0.)
         @test lf isa GaussianLaserField
         @test lf.is_vecpot == true
-        @test lf.duration == 100. * LaserFields.au_as / sqrt(log(16.))
+        @test lf.σ == 100. * LaserFields.au_as / sqrt(log(16.))
         @test lf.t0 == 400. * LaserFields.au_as
         @test lf(lf.t0) == lf.E0/lf.ω0
         @test lf.ϕ0 == 0.5π

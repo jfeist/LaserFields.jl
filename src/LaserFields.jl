@@ -27,18 +27,19 @@ macro _standard_lf_props()
             E0::T1
             ω0::T2
             t0::T3
-            duration::T4
-            ϕ0::T5
-            chirp::T6
+            ϕ0::T4
+            chirp::T5
     end)
 end
 
 Base.@kwdef struct GaussianLaserField{T1,T2,T3,T4,T5,T6} <: LaserField
     @_standard_lf_props
+    σ::T6
 end
 
 Base.@kwdef struct SinExpLaserField{T1,T2,T3,T4,T5,T6,T7} <: LaserField
     @_standard_lf_props
+    T::T6
     exponent::T7
 end
 
@@ -46,12 +47,14 @@ abstract type FlatTopLaserField <: LaserField end
 
 Base.@kwdef struct LinearFlatTopLaserField{T1,T2,T3,T4,T5,T6,T7} <: FlatTopLaserField
     @_standard_lf_props
-    rampon::T7
+    Tflat::T6
+    Tramp::T7
 end
 
 Base.@kwdef struct Linear2FlatTopLaserField{T1,T2,T3,T4,T5,T6,T7} <: FlatTopLaserField
     @_standard_lf_props
-    rampon::T7
+    Tflat::T6
+    Tramp::T7
 end
 
 TX(lf::LaserField) = 2π/lf.ω0
@@ -125,17 +128,17 @@ end
 A_fourier(lf::LaserField,ω) = E_fourier(lf,ω) / (-1im*ω)
 
 function envelope(lf::GaussianLaserField,tr)
-    env   = lf.E0 * exp(-tr^2/(2*lf.duration^2))
-    envpr = -env * tr/lf.duration^2
+    env   = lf.E0 * exp(-tr^2/(2*lf.σ^2))
+    envpr = -env * tr/lf.σ^2
     return env,envpr
 end
 function envelope_fourier(lf::GaussianLaserField,ω)
     # F[exp(-z*t^2)] = exp(-w^2/4z)/sqrt(2z) (for real(z)>0)
-    z = 0.5/lf.duration^2 - 1im*lf.chirp
+    z = 0.5/lf.σ^2 - 1im*lf.chirp
     return lf.E0 * exp(-ω^2/4z) / sqrt(2z)
 end
-start_time(lf::GaussianLaserField) = lf.t0 - GAUSSIAN_TIME_CUTOFF_SIGMA*lf.duration
-end_time(  lf::GaussianLaserField) = lf.t0 + GAUSSIAN_TIME_CUTOFF_SIGMA*lf.duration
+start_time(lf::GaussianLaserField) = lf.t0 - GAUSSIAN_TIME_CUTOFF_SIGMA*lf.σ
+end_time(  lf::GaussianLaserField) = lf.t0 + GAUSSIAN_TIME_CUTOFF_SIGMA*lf.σ
 
 function expiatbt2_intT(a,b,T)
     # returns the result of the integral Int(exp(i*(a*t+b*t**2)),{t,-T/2,T/2}) / sqrt(2π)
@@ -150,13 +153,13 @@ function expiatbt2_intT(a,b,T)
 end
 
 function envelope(lf::SinExpLaserField,tr)
-    trel = tr/lf.duration
+    trel = tr/lf.T
     if abs(trel) > 0.5
         env   = 0.
         envpr = 0.
     else
         env   =  lf.E0 * cospi(trel)^lf.exponent
-        envpr = -lf.E0 * sinpi(trel) * lf.exponent * cospi(trel)^(lf.exponent-1) * π/lf.duration
+        envpr = -lf.E0 * sinpi(trel) * lf.exponent * cospi(trel)^(lf.exponent-1) * π/lf.T
     end
     return env,envpr
 end
@@ -165,58 +168,58 @@ function envelope_fourier(lf::SinExpLaserField,ω)
     if lf.exponent == 2
         if lf.chirp == 0
             # the expression with chirp can not be evaluated with chirp == 0, so we take this as a special case
-            return lf.E0 * sqrt(8π^3) * sinc(ω*lf.duration/2π)/(8π^2/lf.duration - 2*ω^2*lf.duration)
+            return lf.E0 * sqrt(8π^3) * sinc(ω*lf.T/2π)/(8π^2/lf.T - 2*ω^2*lf.T)
         else
             # now we use that cos(pi*t/T)**2 * exp(i*c*t**2) can be written as 0.5 exp(i*c*t**2) + 0.25 exp(i*c*t**2 - 2*i*pi*t/T) + 0.25 exp(i*c*t**2 + 2*i*pi*t/T)
             # the integral of exp(IU*(a*t+b*t**2)) from t=-T/2 to t=T/2 can be calculated analytically and is implemented in the function below
             # the arguments are a={-ω, -2*pi/T-ω, 2*pi/T-ω} and b=chirp
-            wd = 2π/lf.duration
-            return lf.E0 * (expiatbt2_intT(    - ω, lf.chirp, lf.duration)/2 +
-                            expiatbt2_intT(-wd - ω, lf.chirp, lf.duration)/4 +
-                            expiatbt2_intT( wd - ω, lf.chirp, lf.duration)/4)
+            wd = 2π/lf.T
+            return lf.E0 * (expiatbt2_intT(    - ω, lf.chirp, lf.T)/2 +
+                            expiatbt2_intT(-wd - ω, lf.chirp, lf.T)/4 +
+                            expiatbt2_intT( wd - ω, lf.chirp, lf.T)/4)
         end
     elseif lf.exponent == 4
         if lf.chirp == 0
             # the expression with chirp can not be evaluated with chirp == 0, so we take this as a special case
-            return lf.E0 * 24 * (sqrt(2π^7) * sinc(ω*lf.duration/2π) /
-                                    (128π^4/lf.duration - 40π^2*ω^2*lf.duration + 2ω^4*lf.duration^3))
+            return lf.E0 * 24 * (sqrt(2π^7) * sinc(ω*lf.T/2π) /
+                                    (128π^4/lf.T - 40π^2*ω^2*lf.T + 2ω^4*lf.T^3))
         else
             # now we use that cos(pi*t/T)**4 * exp(i*c*t**2) can be written as
             # (0.375 exp(i*c*t**2) + 0.25 exp(i*c*t**2 - 2*i*pi*t/T) + 0.25 exp(i*c*t**2 + 2*i*pi*t/T) +
             #  0.0625 exp(i*c*t**2 - 4*i*pi*t/T) + 0.0625 exp(i*c*t**2 + 4*i*pi*t/T))
             # the integral of exp(IU*(a*t+b*t**2)) from t=-T/2 to t=T/2 can be calculated analytically and is implemented in the function below
             # the arguments are a={-ω, -2*pi/T-ω, 2*pi/T-ω, -4*pi/T-ω, 4*pi/T-ω} and b=chirp
-            wd = 2π/lf.duration
-            return lf.E0 * (expiatbt2_intT(     - ω, lf.chirp, lf.duration)*0.375  +
-                            expiatbt2_intT( -wd - ω, lf.chirp, lf.duration)*0.25   +
-                            expiatbt2_intT(  wd - ω, lf.chirp, lf.duration)*0.25   +
-                            expiatbt2_intT(-2wd - ω, lf.chirp, lf.duration)*0.0625 +
-                            expiatbt2_intT( 2wd - ω, lf.chirp, lf.duration)*0.0625)
+            wd = 2π/lf.T
+            return lf.E0 * (expiatbt2_intT(     - ω, lf.chirp, lf.T)*0.375  +
+                            expiatbt2_intT( -wd - ω, lf.chirp, lf.T)*0.25   +
+                            expiatbt2_intT(  wd - ω, lf.chirp, lf.T)*0.25   +
+                            expiatbt2_intT(-2wd - ω, lf.chirp, lf.T)*0.0625 +
+                            expiatbt2_intT( 2wd - ω, lf.chirp, lf.T)*0.0625)
         end
     else
         if lf.chirp != 0 || !isinteger(lf.exponent)
             error("sin_exp fourier transform with exponent != 2 or 4 only implemented for integer exponents and unchirped pulses")
         end
-        x = 0.5*(ω*lf.duration/π - lf.exponent)
-        return lf.E0 * lf.duration * gamma(lf.exponent+1)*gamma(x)*sinpi(x)/(sqrt(2^(2lf.exponent+1) * π^3) * gamma(x+lf.exponent+1))
+        x = 0.5*(ω*lf.T/π - lf.exponent)
+        return lf.E0 * lf.T * gamma(lf.exponent+1)*gamma(x)*sinpi(x)/(sqrt(2^(2lf.exponent+1) * π^3) * gamma(x+lf.exponent+1))
     end
 end
 
-start_time(lf::SinExpLaserField) = lf.t0 - lf.duration/2
-end_time(  lf::SinExpLaserField) = lf.t0 + lf.duration/2
+start_time(lf::SinExpLaserField) = lf.t0 - lf.T/2
+end_time(  lf::SinExpLaserField) = lf.t0 + lf.T/2
 
-start_time(lf::FlatTopLaserField)      = lf.t0 - lf.duration/2 - lf.rampon
-end_time(  lf::FlatTopLaserField)      = lf.t0 + lf.duration/2 + lf.rampon
+start_time(lf::FlatTopLaserField)      = lf.t0 - lf.Tflat/2 - lf.Tramp
+end_time(  lf::FlatTopLaserField)      = lf.t0 + lf.Tflat/2 + lf.Tramp
 
 function envelope(lf::FlatTopLaserField,tr)
     # for linear field, the peak time is the middle of the interval
-    if abs(tr) > lf.duration/2 + lf.rampon
+    if abs(tr) > lf.Tflat/2 + lf.Tramp
         env   = 0.
         envpr = 0.
-    elseif abs(tr) > lf.duration/2
-        trel  = (lf.rampon + lf.duration/2 - abs(tr))/lf.rampon
+    elseif abs(tr) > lf.Tflat/2
+        trel  = (lf.Tramp + lf.Tflat/2 - abs(tr))/lf.Tramp
         env   = ramponfunc(lf,trel)
-        envpr = -sign(tr)*ramponfuncpr(lf,trel) / lf.rampon
+        envpr = -sign(tr)*ramponfuncpr(lf,trel) / lf.Tramp
     else
         env   = 1.
         envpr = 0.
@@ -231,16 +234,17 @@ ramponfuncpr(lf::Linear2FlatTopLaserField,trel) = sin(π*trel) * π/2
 
 function envelope_fourier(lf::LinearFlatTopLaserField,ω)
     lf.chirp == 0 || error("Fourier transform of 'linear' field with chirp not implemented!")
-    return lf.E0 * sqrt(8/π) * sinc(ω*lf.rampon/2π) * sinc(ω*(lf.rampon+lf.duration)/2π) * (lf.rampon+lf.duration)/4
+    return lf.E0 * sqrt(8/π) * sinc(ω*lf.Tramp/2π) * sinc(ω*(lf.Tramp+lf.Tflat)/2π) * (lf.Tramp+lf.Tflat)/4
 end
 
 function envelope_fourier(lf::Linear2FlatTopLaserField,ω)
     lf.chirp == 0 || error("Fourier transform of 'linear2' field with chirp not implemented!")
-    return lf.E0 * sqrt(2π^3) * cos(ω*lf.rampon/2) * sinc(ω*(lf.rampon+lf.duration)/2π) * (lf.rampon+lf.duration)/ (2π^2 - 2*lf.rampon^2*ω^2)
+    return lf.E0 * sqrt(2π^3) * cos(ω*lf.Tramp/2) * sinc(ω*(lf.Tramp+lf.Tflat)/2π) * (lf.Tramp+lf.Tflat)/ (2π^2 - 2*lf.Tramp^2*ω^2)
 end
 
 Base.@kwdef struct InterpolatingLaserField{T1,T2,T3,T4,T5,T6,T7,T8,T9,T10} <: LaserField
     @_standard_lf_props
+    duration::T6
     datafile::String
     Efun::T7
     Afun::T8
@@ -354,24 +358,24 @@ function make_laser_field(; form::String, is_vecpot::Bool, phase_pi=0, pargs...)
         0
     end
     kwargs = Dict(pairs((is_vecpot=is_vecpot, ϕ0=π*phase_pi, E0=E0, ω0=omega,
-                         t0=peak_time, duration=duration, chirp=chirp)))
-    if   form in ("gaussian","gaussianF")
+                         t0=peak_time, chirp=chirp)))
+    if form in ("gaussian","gaussianF")
         # convert from FWHM of field to standard deviation of field
-        kwargs[:duration] /= sqrt(log(256))
+        kwargs[:σ] = duration / sqrt(log(256))
         return GaussianLaserField(; kwargs...)
     elseif form in ("gaussian2","gaussianI")
         # convert from FWHM of intensity to standard deviation of field
-        kwargs[:duration] /= sqrt(log(16))
+        kwargs[:σ] = duration / sqrt(log(16))
         return GaussianLaserField(; kwargs...)
-    elseif form == "linear"
-        kwargs[:rampon] = rampon
-        return LinearFlatTopLaserField(; kwargs...)
-    elseif form == "linear2"
-        kwargs[:rampon] = rampon
-        return Linear2FlatTopLaserField(; kwargs...)
     elseif form in ("sin2","sin4","sin_exp")
+        kwargs[:T] = duration
         kwargs[:exponent] = form=="sin2" ? 2 : (form=="sin4" ? 4 : args.form_exponent)
         return SinExpLaserField(; kwargs...)
+    elseif form in ("linear","linear2")
+        kwargs[:Tflat] = duration
+        kwargs[:Tramp] = rampon
+        lftype = form=="linear" ? LinearFlatTopLaserField : Linear2FlatTopLaserField
+        return lftype(; kwargs...)
     else
         error("Unknown laser field form '$form'")
     end
