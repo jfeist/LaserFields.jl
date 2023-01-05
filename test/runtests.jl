@@ -53,13 +53,31 @@ using Test
     end
 
     @testset "make_laser_field" begin
-        lf = make_laser_field(form="gaussianI", is_vecpot=true, phase_pi=0.5, duration_as=100.,
-                              peak_time_as=400, intensity_Wcm2=1e14, lambda_nm=12., linear_chirp_rate_w0as=0.)
-        @test lf isa GaussianLaserField
-        @test lf.is_vecpot == true
-        @test lf.σ == 100. * LaserFields.au_as / sqrt(log(16.))
-        @test lf.t0 == 400. * LaserFields.au_as
-        @test lf(lf.t0) == lf.E0/lf.ω0
-        @test lf.ϕ0 == 0.5π
+        @testset "working" begin
+            lf = make_laser_field(form="gaussianI", is_vecpot=true, phase_pi=0.5, duration_as=100.,
+                                peak_time_as=400, intensity_Wcm2=1e14, lambda_nm=12., linear_chirp_rate_w0as=0.)
+            @test lf isa GaussianLaserField
+            @test lf.is_vecpot == true
+            @test lf.σ == 100. * LaserFields.au_as / sqrt(log(16.))
+            @test lf.t0 == 400. * LaserFields.au_as
+            @test lf(lf.t0) == lf.E0/lf.ω0
+            @test lf.ϕ0 == 0.5π
+        end
+        @testset "overspecified parameters" begin
+            @test_throws ErrorException make_laser_field(form="gaussianI", is_vecpot=true, phase_pi=0.5, duration=10., duration_as=100.,
+                                                         peak_time_as=400, intensity_Wcm2=1e14, lambda_nm=12., linear_chirp_rate_w0as=0.)
+            @test_throws ErrorException make_laser_field(form="gaussianI", is_vecpot=true, phase_pi=0.5, duration_as=100.,
+                                                         peak_time=0., peak_time_as=400, intensity_Wcm2=1e14, lambda_nm=12., linear_chirp_rate_w0as=0.)
+            @test_throws ErrorException make_laser_field(form="gaussianI", is_vecpot=true, phase_pi=0.5, duration_as=100.,
+                                                         peak_time_as=400, E0=0.3, intensity_Wcm2=1e14, lambda_nm=12., linear_chirp_rate_w0as=0.)
+        end
+        @testset "missing parameters" begin
+            @test_throws ErrorException make_laser_field(form="gaussianI", is_vecpot=true, phase_pi=0.5,
+                                                         peak_time_as=400, intensity_Wcm2=1e14, lambda_nm=12., linear_chirp_rate_w0as=0.)
+            @test_throws ErrorException make_laser_field(form="gaussianI", is_vecpot=true, phase_pi=0.5, duration_as=100.,
+                                                         intensity_Wcm2=1e14, lambda_nm=12., linear_chirp_rate_w0as=0.)
+            @test_throws ErrorException make_laser_field(form="gaussianI", is_vecpot=true, phase_pi=0.5, duration_as=100.,
+                                                         peak_time_as=400, lambda_nm=12., linear_chirp_rate_w0as=0.)
+        end        
     end
 end

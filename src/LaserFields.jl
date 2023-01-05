@@ -290,6 +290,40 @@ end_time(  lf::InterpolatingLaserField) = lf.end_time
 E_field(lf::InterpolatingLaserField,t) = (start_time(lf) <= t <= end_time(lf)) ? lf.Efun(t) : 0.
 A_field(lf::InterpolatingLaserField,t) = (start_time(lf) <= t <= end_time(lf)) ? lf.Afun(t) : 0.
 
+macro select_param(nt,options)
+    @assert options.head ∈ (:block,:tuple)
+    params = []
+    default = nothing
+    for arg in options.args
+        if arg isa Expr && arg.head == :call
+            ex = arg.args
+            @assert ex[1] == :(=>) && length(ex) == 3
+            push!(params, ex[2] => ex[3])
+        elseif !(arg isa LineNumberNode)
+            @assert isnothing(default) "Cannot have more than one default argument"
+            default = arg
+        end
+    end
+    parnamestr = join(first.(params),", ")
+    checkexpr(head,par) = Expr(head, :(haskey($nt,$(QuoteNode(first(par))))), last(par))
+    ifexpr = currif = checkexpr(:if, params[1])
+    for par in params[2:end]
+        push!(currif.args, checkexpr(:elseif, par))
+        currif = currif.args[end]
+    end
+    if isnothing(default)
+        push!(currif.args, :(error("ERROR: You need to specify one out of: ($($parnamestr))!")))
+    else
+        push!(currif.args, default)
+    end
+    esc(quote
+        if sum(haskey.(Ref($nt),$(first.(params)))) > 1
+            error("ERROR: Cannot specify more than one out of: ($($parnamestr))\npassed arguments: $($nt)")
+        end
+        $ifexpr
+    end)
+end
+
 # General function to make a laser field with the parameter conventions from fortran laserfields library
 function make_laser_field(; form::String, is_vecpot::Bool, phase_pi=0, pargs...)
     args = values(pargs)
@@ -297,51 +331,17 @@ function make_laser_field(; form::String, is_vecpot::Bool, phase_pi=0, pargs...)
         return InterpolatingLaserField(args.datafile; is_vecpot=is_vecpot)
     end
 
-    E0 = if haskey(args,:E0)
-        haskey(args,:intensity_Wcm2) && error("Cannot specify both E0 and intensity_Wcm2")
-        args.E0
-    else
-        sqrt(args.intensity_Wcm2 * au_wcm2toel2)
+    E0 = @select_param args (E0 => args.E0, intensity_Wcm2 => sqrt(args.intensity_Wcm2 * au_wcm2toel2))
+    omega = @select_param args (omega => args.omega, lambda_nm => 2π*au_c / (args.lambda_nm * au_nm))
+    chirp = @select_param args begin
+        chirp => args.chirp
+        linear_chirp_rate_w0as => omega * args.linear_chirp_rate_w0as / au_as
+        0.
     end
+    peak_time = @select_param args (peak_time => args.peak_time, peak_time_as => args.peak_time_as * au_as)
+    duration = @select_param args (duration => args.duration, duration_as => args.duration_as * au_as)
+    rampon = @select_param args (rampon => args.rampon, rampon_as => args.rampon_as * au_as, 0.)
 
-    omega = if haskey(args,:omega)
-        haskey(args,:lambda_nm) && error("Cannot specify both omega and lambda_nm")
-        args.omega
-    else
-        2π*au_c / (args.lambda_nm * au_nm)
-    end
-
-    chirp = if haskey(args,:chirp)
-        haskey(args,:linear_chirp_rate_w0as) && error("Cannot specify both chirp and linear_chirp_rate_w0as")
-        args.chirp
-    elseif haskey(args,:linear_chirp_rate_w0as)
-        omega * args.linear_chirp_rate_w0as / au_as
-    else
-        0
-    end
-
-    peak_time = if haskey(args,:peak_time)
-        haskey(args,:peak_time_as) && error("Cannot specify both peak_time and peak_time_as")
-        args.peak_time
-    else
-        args.peak_time_as * au_as
-    end
-
-    duration = if haskey(args,:duration)
-        haskey(args,:duration_as) && error("Cannot specify both duration and duration_as")
-        args.duration
-    else
-        args.duration_as * au_as
-    end
-
-    rampon = if haskey(args,:rampon)
-        haskey(args,:rampon_as) && error("Cannot specify both rampon and rampon_as")
-        args.rampon
-    elseif haskey(args,:rampon_as)
-        args.rampon_as * au_as
-    else
-        0
-    end
     kwargs = Dict(pairs((is_vecpot=is_vecpot, ϕ0=π*phase_pi, E0=E0, ω0=omega,
                          t0=peak_time, chirp=chirp)))
     if form in ("gaussian","gaussianF")
