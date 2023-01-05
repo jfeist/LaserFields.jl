@@ -15,7 +15,7 @@ using Test
         Linear2FlatTopLaserField(;general_args..., Tflat=400., Tramp=150),
     ]
 
-    for lf in test_fields
+    @testset "General arguments" for lf in test_fields
         @test lf.is_vecpot == true
         @test lf.E0 == 1.5
         @test lf.ω0 == 0.12
@@ -24,7 +24,8 @@ using Test
         @test lf.ϕ0 == 0.8π
     end
 
-    let lf = InterpolatingLaserField("laserdat.dat", is_vecpot=true)
+    @testset "read-in field vecpot" begin
+        lf = InterpolatingLaserField("laserdat.dat", is_vecpot=true)
         @test lf.is_vecpot == true
         @test lf.E0 == 0.15985607526339093
         @test lf.ω0 == 0.16132596121126513
@@ -37,7 +38,8 @@ using Test
         @test end_time(lf) == 700.0
     end
 
-    let lf = InterpolatingLaserField("laserdat.dat", is_vecpot=false)
+    @testset "read-in field e-field" begin
+        lf = InterpolatingLaserField("laserdat.dat", is_vecpot=false)
         @test lf.is_vecpot == false
         @test lf.E0 == 0.996830886761803
         @test lf.ω0 == 0.16009446532415655
@@ -50,7 +52,8 @@ using Test
         @test end_time(lf) == 700.0
     end
 
-    let lf = make_laser_field(form="gaussianI", is_vecpot=true, phase_pi=0.5, duration_as=100.,
+    @testset "make_laser_field" begin
+        lf = make_laser_field(form="gaussianI", is_vecpot=true, phase_pi=0.5, duration_as=100.,
                               peak_time_as=400, intensity_Wcm2=1e14, lambda_nm=12., linear_chirp_rate_w0as=0.)
         @test lf isa GaussianLaserField
         @test lf.is_vecpot == true
