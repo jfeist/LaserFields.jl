@@ -325,25 +325,25 @@ macro select_param(nt,options)
 end
 
 # General function to make a laser field with the parameter conventions from fortran laserfields library
-function make_laser_field(; form::String, is_vecpot::Bool, phase_pi=0, pargs...)
+function make_laser_field(; form::String, is_vecpot::Bool, pargs...)
     args = values(pargs)
     if form == "readin"
         return InterpolatingLaserField(args.datafile; is_vecpot=is_vecpot)
     end
 
     E0 = @select_param args (E0 => args.E0, intensity_Wcm2 => sqrt(args.intensity_Wcm2 * au_wcm2toel2))
-    omega = @select_param args (omega => args.omega, lambda_nm => 2π*au_c / (args.lambda_nm * au_nm))
+    ω0 = @select_param args (ω0 => args.ω0, omega => args.omega, lambda_nm => 2π*au_c / (args.lambda_nm * au_nm))
+    ϕ0 = @select_param args (ϕ0 => args.ϕ0, phase_pi => π*args.phase_pi, 0.)
     chirp = @select_param args begin
         chirp => args.chirp
-        linear_chirp_rate_w0as => omega * args.linear_chirp_rate_w0as / au_as
+        linear_chirp_rate_w0as => ω0 * args.linear_chirp_rate_w0as / au_as
         0.
     end
-    peak_time = @select_param args (peak_time => args.peak_time, peak_time_as => args.peak_time_as * au_as)
+    t0 = @select_param args (t0 => args.t0, peak_time => args.peak_time, peak_time_as => args.peak_time_as * au_as)
     duration = @select_param args (duration => args.duration, duration_as => args.duration_as * au_as)
-    rampon = @select_param args (rampon => args.rampon, rampon_as => args.rampon_as * au_as, 0.)
+    Tramp = @select_param args (Tramp => args.Tramp, rampon => args.rampon, rampon_as => args.rampon_as * au_as, 0.)
 
-    kwargs = Dict(pairs((is_vecpot=is_vecpot, ϕ0=π*phase_pi, E0=E0, ω0=omega,
-                         t0=peak_time, chirp=chirp)))
+    kwargs = Dict(pairs((; is_vecpot, ϕ0, E0, ω0, t0, chirp)))
     if form in ("gaussian","gaussianF")
         # convert from FWHM of field to standard deviation of field
         kwargs[:σ] = duration / sqrt(log(256))
@@ -358,7 +358,7 @@ function make_laser_field(; form::String, is_vecpot::Bool, phase_pi=0, pargs...)
         return SinExpLaserField(; kwargs...)
     elseif form in ("linear","linear2")
         kwargs[:Tflat] = duration
-        kwargs[:Tramp] = rampon
+        kwargs[:Tramp] = Tramp
         lftype = form=="linear" ? LinearFlatTopLaserField : Linear2FlatTopLaserField
         return lftype(; kwargs...)
     else
