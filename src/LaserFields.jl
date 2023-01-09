@@ -135,7 +135,7 @@ function envelope(lf::SinExpLaserField,tr)
         (0., 0.)
     else
         lf.E0 .* (cospi(trel)^lf.exponent,
-                  cospi(trel)^(lf.exponent-1) * lf.exponent*π/lf.T * sinpi(trel))
+                  -lf.exponent*π/lf.T * cospi(trel)^(lf.exponent-1) * sinpi(trel))
     end
 end
 

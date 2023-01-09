@@ -78,6 +78,6 @@ using Test
                                                          intensity_Wcm2=1e14, lambda_nm=12., linear_chirp_rate_w0as=0.)
             @test_throws ErrorException make_laser_field(form="gaussianI", is_vecpot=true, phase_pi=0.5, duration_as=100.,
                                                          peak_time_as=400, lambda_nm=12., linear_chirp_rate_w0as=0.)
-        end        
+        end
     end
 end
