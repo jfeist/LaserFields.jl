@@ -257,6 +257,7 @@ function InterpolatingLaserField(datafile; is_vecpot)
         Afun = t -> -DataInterpolations.integral(Efun,start_time,t)
     end
 
+    # guess the parameters of the field - note that this is just a simple estimation, not anything rigorous
     TX = Inf
     E0 = 0.
     Eprev = Efun(tt[1])
@@ -290,6 +291,13 @@ end_time(  lf::InterpolatingLaserField) = lf.end_time
 E_field(lf::InterpolatingLaserField,t) = (start_time(lf) <= t <= end_time(lf)) ? lf.Efun(t) : 0.
 A_field(lf::InterpolatingLaserField,t) = (start_time(lf) <= t <= end_time(lf)) ? lf.Afun(t) : 0.
 
+"""Get a value from one of several possibly defined parameters, or a default value if none are defined.
+Makes sure that at most one of the options are specified, and that at least one is given if there is no default value.
+
+    sample use: `x = @select_param args (x => args.x, x_squared => sqrt(x_squared), 0.)`
+    
+This makes it possible to call a function with either `x`, `x_squared`, or neither, and in the last case, `x` is set to 0.
+"""
 macro select_param(nt,options)
     @assert options.head ∈ (:block,:tuple)
     params = []
