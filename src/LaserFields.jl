@@ -4,7 +4,7 @@ using SpecialFunctions
 using DelimitedFiles
 using DataInterpolations
 
-export make_laser_field, E_field, A_field, E_fourier, A_fourier, start_time, end_time
+export LaserField, E_field, A_field, E_fourier, A_fourier, start_time, end_time
 
 const GAUSSIAN_TIME_CUTOFF_SIGMA = 3.5*sqrt(log(256))
 const au_as   = 1/24.188843265903884 # attosecond in a.u.
@@ -34,7 +34,7 @@ end
 
 TX(lf::LaserField) = 2π/lf.ω0
 
-(lf::LaserField)(t) = lf.is_vecpot ? A_field(lf,t) : E_field(lf,t)
+(lf::LaserField)(t) = E_field(lf,t)
 
 function E_field(lf::LaserField,t)
     tr = t - lf.t0
@@ -333,7 +333,9 @@ macro select_param(nt,options)
 end
 
 # General function to make a laser field with the parameter conventions from fortran laserfields library
-function make_laser_field(; form::String, is_vecpot::Bool, pargs...)
+LaserField(d) = LaserField(; d...)
+
+function LaserField(; form::String, is_vecpot::Bool, pargs...)
     args = values(pargs)
     if form == "readin"
         return InterpolatingLaserField(args.datafile; is_vecpot=is_vecpot)
