@@ -4,7 +4,7 @@ using SpecialFunctions
 using DelimitedFiles
 using DataInterpolations
 
-export LaserField, E_field, A_field, E_fourier, A_fourier, start_time, end_time
+export LaserField, E_field, A_field, E_fourier, A_fourier, start_time, end_time, Teff
 
 const GAUSSIAN_TIME_CUTOFF_SIGMA = 3.5*sqrt(log(256))
 const au_as   = 1/24.188843265903884 # attosecond in a.u.
@@ -112,6 +112,7 @@ envelope(lf::GaussianLaserField,tr) = (env = lf.E0 * exp(-tr^2/(2*lf.σ^2)); (en
 envelope_fourier(lf::GaussianLaserField,ω) = (z = 0.5/lf.σ^2 - 1im*lf.chirp; lf.E0 * exp(-ω^2/4z) / sqrt(2z))
 start_time(lf::GaussianLaserField) = lf.t0 - GAUSSIAN_TIME_CUTOFF_SIGMA*lf.σ
 end_time(  lf::GaussianLaserField) = lf.t0 + GAUSSIAN_TIME_CUTOFF_SIGMA*lf.σ
+Teff(lf::GaussianLaserField,n_photon) = lf.σ * sqrt(π/n_photon)
 
 Base.@kwdef struct SinExpLaserField{T1,T2,T3,T4,T5,T6,T7} <: LaserField
     @_standard_lf_props
@@ -181,6 +182,7 @@ end
 
 start_time(lf::SinExpLaserField) = lf.t0 - lf.T/2
 end_time(  lf::SinExpLaserField) = lf.t0 + lf.T/2
+Teff(lf::SinExpLaserField,n_photon) = lf.T * gamma(0.5 + n_photon*lf.exponent) / (sqrt(π)*gamma(1 + n_photon*lf.exponent))
 
 abstract type FlatTopLaserField <: LaserField end
 
@@ -225,6 +227,9 @@ function envelope_fourier(lf::Linear2FlatTopLaserField,ω)
     lf.chirp == 0 || error("Fourier transform of 'linear2' field with chirp not implemented!")
     return lf.E0 * sqrt(2π^3) * cos(ω*lf.Tramp/2) * sinc(ω*(lf.Tramp+lf.Tflat)/2π) * (lf.Tramp+lf.Tflat)/ (2π^2 - 2*lf.Tramp^2*ω^2)
 end
+
+Teff(lf::LinearFlatTopLaserField,n_photon) = lf.Tflat + 2*lf.Tramp / (1+2*n_photon)
+Teff(lf::Linear2FlatTopLaserField,n_photon) = lf.Tflat + 2*lf.Tramp * gamma(0.5+2n_photon) / (sqrt(π)*gamma(1+2n_photon))
 
 Base.@kwdef struct InterpolatingLaserField{T1,T2,T3,T4,T5,T6,T7,T8,T9,T10} <: LaserField
     @_standard_lf_props
