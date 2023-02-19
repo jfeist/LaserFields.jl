@@ -122,6 +122,7 @@ end
 
 function expiatbt2_intT(a,b,T)
     # returns the result of the integral Int(exp(i*(a*t+b*t**2)),{t,-T/2,T/2}) / sqrt(2π)
+    iszero(b) && return sqrt(2/π)/a * sin(a*T/2)
     t1 = inv(sqrt(complex(b))) # b might be negative
     zz1 = (1+1im)/4 * t1 # = (1+1im)/(2*sqrt(4b))
     z34 = (-1+1im)/sqrt(8) * t1 # == (-1)**(3/4) / sqrt(4b)
@@ -141,43 +142,16 @@ function envelope(lf::SinExpLaserField,tr)
 end
 
 function envelope_fourier(lf::SinExpLaserField,ω)
-    if lf.exponent == 2
-        if lf.chirp == 0
-            # the expression with chirp cannot be evaluated with chirp == 0, so we take this as a special case
-            return lf.E0 * sqrt(8π^3) * sinc(ω*lf.T/2π)/(8π^2/lf.T - 2*ω^2*lf.T)
-        else
-            # now we use that cos(pi*t/T)**2 * exp(i*c*t**2) can be written as 0.5 exp(i*c*t**2) + 0.25 exp(i*c*t**2 - 2*i*pi*t/T) + 0.25 exp(i*c*t**2 + 2*i*pi*t/T)
-            # the integral of exp(IU*(a*t+b*t**2)) from t=-T/2 to t=T/2 can be calculated analytically and is implemented in the function expiatbt2_intT above
-            # the arguments are a={-ω, -2*pi/T-ω, 2*pi/T-ω} and b=chirp
-            wd = 2π/lf.T
-            return lf.E0 * (expiatbt2_intT(    - ω, lf.chirp, lf.T)/2 +
-                            expiatbt2_intT(-wd - ω, lf.chirp, lf.T)/4 +
-                            expiatbt2_intT( wd - ω, lf.chirp, lf.T)/4)
-        end
-    elseif lf.exponent == 4
-        if lf.chirp == 0
-            # the expression with chirp can not be evaluated with chirp == 0, so we take this as a special case
-            return lf.E0 * 24 * (sqrt(2π^7) * sinc(ω*lf.T/2π) / (128π^4/lf.T - 40π^2*ω^2*lf.T + 2ω^4*lf.T^3))
-        else
-            # now we use that cos(pi*t/T)**4 * exp(i*c*t**2) can be written as
-            # (0.375 exp(i*c*t**2) + 0.25 exp(i*c*t**2 - 2*i*pi*t/T) + 0.25 exp(i*c*t**2 + 2*i*pi*t/T) +
-            #  0.0625 exp(i*c*t**2 - 4*i*pi*t/T) + 0.0625 exp(i*c*t**2 + 4*i*pi*t/T))
-            # the integral of exp(IU*(a*t+b*t**2)) from t=-T/2 to t=T/2 can be calculated analytically and is implemented in the function expiatbt2_intT above
-            # the arguments are a={-ω, -2*pi/T-ω, 2*pi/T-ω, -4*pi/T-ω, 4*pi/T-ω} and b=chirp
-            wd = 2π/lf.T
-            return lf.E0 * (expiatbt2_intT(     - ω, lf.chirp, lf.T)*0.375  +
-                            expiatbt2_intT( -wd - ω, lf.chirp, lf.T)*0.25   +
-                            expiatbt2_intT(  wd - ω, lf.chirp, lf.T)*0.25   +
-                            expiatbt2_intT(-2wd - ω, lf.chirp, lf.T)*0.0625 +
-                            expiatbt2_intT( 2wd - ω, lf.chirp, lf.T)*0.0625)
-        end
-    else
-        if lf.chirp != 0 || !isinteger(lf.exponent)
-            error("sin_exp fourier transform with exponent != 2 or 4 only implemented for integer exponents and unchirped pulses")
-        end
-        x = 0.5*(ω*lf.T/π - lf.exponent)
-        return lf.E0 * lf.T * gamma(lf.exponent+1)*gamma(x)*sinpi(x)/(sqrt(2^(2lf.exponent+1) * π^3) * gamma(x+lf.exponent+1))
+    isinteger(lf.exponent) || error("sin_exp fourier transform only implemented for integer exponents")
+    # rewrite the envelope as a sum of exponentials, which are easy to Fourier transform over a limited time interval
+    # cos(πt/T)^n = 1/2^n (exp(iπt/T)+ exp(-iπt/T))^n = 1/2^n sum_k=0^n binomial(n,k) exp(i(n-2k)πt/T)
+    n = Int(lf.exponent)
+    wd = π/lf.T
+    res = 0im
+    for k = 0:n
+        res += binomial(n,k) * expiatbt2_intT((n-2k)*wd - ω, lf.chirp, lf.T)
     end
+    return lf.E0/2^n * res
 end
 
 start_time(lf::SinExpLaserField) = lf.t0 - lf.T/2
