@@ -4,7 +4,7 @@ using SpecialFunctions
 using DelimitedFiles
 using DataInterpolations
 
-export LaserField, E_field, A_field, E_fourier, A_fourier, start_time, end_time, Teff
+export LaserField, E_field, A_field, E_fourier, A_fourier, start_time, end_time, envelope, Teff
 
 const GAUSSIAN_TIME_CUTOFF_SIGMA = 3.5*sqrt(log(256))
 const au_as   = 1/24.188843265903884 # attosecond in a.u.
@@ -36,9 +36,11 @@ TX(lf::LaserField) = 2π/lf.ω0
 
 (lf::LaserField)(t) = E_field(lf,t)
 
+envelope(lf::LaserField,t) = _envelope(lf,t-lf.t0)[1]
+
 function E_field(lf::LaserField,t)
     tr = t - lf.t0
-    env, envpr = envelope(lf,tr)
+    env, envpr = _envelope(lf,tr)
     ϕt = lf.ϕ0 + lf.ω0*tr + lf.chirp*tr^2
     osc   = sin(ϕt)
     if lf.is_vecpot
@@ -54,7 +56,7 @@ function A_field(lf::LaserField,t)
     lf.is_vecpot || error("laser field is not given as a vector potential, cannot get A(t) analytically!")
 
     tr = t - lf.t0
-    env, _ = envelope(lf,tr)
+    env, _ = _envelope(lf,tr)
     osc = sin(lf.ϕ0 + lf.ω0*tr + lf.chirp*tr^2)
     # Divide out derivative of oscillation to ensure peak amplitude of E0 for electric field
     return env*osc / lf.ω0
@@ -66,7 +68,7 @@ f(t) = (env(t) exp(i*(phi0 + ω0*tr + chirp*tr^2)) + c.c. ) / 2im, where tr = t-
 For the fourier transform of the envelope, we include the chirp term
 exp(i chirp (t-tpeak)^2) in the envelope, so that its fourier transform is a complex function.
 However, for unchirped pulses, the result will be purely real."""
-function envelope_fourier end
+function _envelope_fourier end
 
 function E_fourier(lf::LaserField,ω)
     # analytically determine the fourier transform of the defined laser fields
@@ -81,8 +83,8 @@ function E_fourier(lf::LaserField,ω)
     # F[f(t) exp(im ω0 t)](ω) = F[f(t)](ω-ω0)
     # complex conjugation of the transformed function gives complex conjugation + reversal of the argument in the transform, so
     # F[conjg(f(t) exp(im ω0 t))](ω) = conjg(F[f(t) exp(IU ω0 t)](-ω)) = conjg(F[f(t)](-ω-ω0))
-    ELFT = (   envelope_fourier(lf, ω-lf.ω0) * cis(lf.ϕ0)
-            - (envelope_fourier(lf,-ω-lf.ω0) * cis(lf.ϕ0))') / 2im
+    ELFT = (   _envelope_fourier(lf, ω-lf.ω0) * cis(lf.ϕ0)
+            - (_envelope_fourier(lf,-ω-lf.ω0) * cis(lf.ϕ0))') / 2im
 
     # the fourier transform of the part was determined as if it was centered around t=0
     # shift in time now -- just adds a phase exp(-im*ω*t0), as F[f(t-a)] = exp(-im*ω*a) F[f(t)]
@@ -107,9 +109,9 @@ Base.@kwdef struct GaussianLaserField{T1,T2,T3,T4,T5,T6} <: LaserField
     @_standard_lf_props
     σ::T6
 end
-envelope(lf::GaussianLaserField,tr) = (env = lf.E0 * exp(-tr^2/(2*lf.σ^2)); (env, -env * tr/lf.σ^2))
+_envelope(lf::GaussianLaserField,tr) = (env = lf.E0 * exp(-tr^2/(2*lf.σ^2)); (env, -env * tr/lf.σ^2))
 # F[exp(-z*t^2)] = exp(-w^2/4z)/sqrt(2z) (for real(z)>0)
-envelope_fourier(lf::GaussianLaserField,ω) = (z = 0.5/lf.σ^2 - 1im*lf.chirp; lf.E0 * exp(-ω^2/4z) / sqrt(2z))
+_envelope_fourier(lf::GaussianLaserField,ω) = (z = 0.5/lf.σ^2 - 1im*lf.chirp; lf.E0 * exp(-ω^2/4z) / sqrt(2z))
 start_time(lf::GaussianLaserField) = lf.t0 - GAUSSIAN_TIME_CUTOFF_SIGMA*lf.σ
 end_time(  lf::GaussianLaserField) = lf.t0 + GAUSSIAN_TIME_CUTOFF_SIGMA*lf.σ
 Teff(lf::GaussianLaserField,n_photon) = lf.σ * sqrt(π/n_photon)
@@ -131,7 +133,7 @@ function expiatbt2_intT(a,b,T)
     sign(b) * (erf(z34*(a-b*T)) - erf(z34*(a+b*T))) * zz1 * cis(-a^2/4b)
 end
 
-function envelope(lf::SinExpLaserField,tr)
+function _envelope(lf::SinExpLaserField,tr)
     trel = tr/lf.T
     if abs(trel) > 0.5
         (0., 0.)
@@ -141,9 +143,9 @@ function envelope(lf::SinExpLaserField,tr)
     end
 end
 
-function envelope_fourier(lf::SinExpLaserField,ω)
+function _envelope_fourier(lf::SinExpLaserField,ω)
     isinteger(lf.exponent) || error("sin_exp fourier transform only implemented for integer exponents")
-    # rewrite the envelope as a sum of exponentials, which are easy to Fourier transform over a limited time interval
+    # rewrite the _envelope as a sum of exponentials, which are easy to Fourier transform over a limited time interval
     # cos(πt/T)^n = 1/2^n (exp(iπt/T)+ exp(-iπt/T))^n = 1/2^n sum_k=0^n binomial(n,k) exp(i(n-2k)πt/T)
     n = Int(lf.exponent)
     wd = π/lf.T
@@ -175,7 +177,7 @@ end
 start_time(lf::FlatTopLaserField) = lf.t0 - lf.Tflat/2 - lf.Tramp
 end_time(  lf::FlatTopLaserField) = lf.t0 + lf.Tflat/2 + lf.Tramp
 
-function envelope(lf::FlatTopLaserField,tr)
+function _envelope(lf::FlatTopLaserField,tr)
     # for linear field, the peak time is the middle of the interval
     if abs(tr) > lf.Tflat/2 + lf.Tramp
         (0., 0.)
@@ -192,12 +194,12 @@ ramponfuncpr(::LinearFlatTopLaserField,trel) = 1.
 ramponfunc(::Linear2FlatTopLaserField,trel) = sin(π/2*trel)^2
 ramponfuncpr(::Linear2FlatTopLaserField,trel) = sin(π*trel) * π/2
 
-function envelope_fourier(lf::LinearFlatTopLaserField,ω)
+function _envelope_fourier(lf::LinearFlatTopLaserField,ω)
     lf.chirp == 0 || error("Fourier transform of 'linear' field with chirp not implemented!")
     return lf.E0 * sqrt(8/π) * sinc(ω*lf.Tramp/2π) * sinc(ω*(lf.Tramp+lf.Tflat)/2π) * (lf.Tramp+lf.Tflat)/4
 end
 
-function envelope_fourier(lf::Linear2FlatTopLaserField,ω)
+function _envelope_fourier(lf::Linear2FlatTopLaserField,ω)
     lf.chirp == 0 || error("Fourier transform of 'linear2' field with chirp not implemented!")
     return lf.E0 * sqrt(2π^3) * cos(ω*lf.Tramp/2) * sinc(ω*(lf.Tramp+lf.Tflat)/2π) * (lf.Tramp+lf.Tflat)/ (2π^2 - 2*lf.Tramp^2*ω^2)
 end
