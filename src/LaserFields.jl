@@ -4,7 +4,7 @@ using SpecialFunctions
 using DelimitedFiles
 using DataInterpolations
 
-export LaserField, E_field, A_field, E_fourier, A_fourier, start_time, end_time, envelope, Teff
+export LaserField, make_laserfield, E_field, A_field, E_fourier, A_fourier, start_time, end_time, envelope, Teff
 
 const GAUSSIAN_TIME_CUTOFF_SIGMA = 3.5*sqrt(log(256))
 const au_as   = 1/24.188843265903884 # attosecond in a.u.
@@ -21,14 +21,37 @@ const au_m_n  = 1838.6836617324586   # m of neutron in a.u.
 abstract type LaserField end
 Base.Broadcast.broadcastable(lf::LaserField) = Ref(lf)
 
-macro _standard_lf_props()
+macro _laserfield_struct(Name,args...)
+    nfreefields = 5
+    defs = Any[]
+    for arg in args
+        if arg isa Symbol
+            nfreefields += 1
+            push!(defs, :($(arg)::$(Symbol(:T,nfreefields))))
+        elseif arg isa Expr && arg.head == :(::)
+            push!(defs, arg)
+        else
+            throw(ArgumentError("invalid argument to new_lf_field"))
+        end
+    end
+
+    DerivT = :LaserField
+    if Name isa Expr && Name.head == :(<:)
+        DerivT = Name.args[2]
+        Name = Name.args[1]
+    end
+
+    Ts = Symbol.(:T,1:nfreefields)
     esc(quote
+        Base.@kwdef struct $(Name){$(Ts...)} <: $(DerivT)
             is_vecpot::Bool
             E0::T1
             ω0::T2
             t0::T3
             ϕ0::T4
             chirp::T5
+            $(defs...)
+        end
     end)
 end
 
@@ -105,10 +128,8 @@ A_fourier(lf::LaserField,ω) = E_fourier(lf,ω) / (-1im*ω)
 #### START LASER FIELD DEFINITIONS ####
 
 # laser field with a Gaussian envelope with std dev σ
-Base.@kwdef struct GaussianLaserField{T1,T2,T3,T4,T5,T6} <: LaserField
-    @_standard_lf_props
-    σ::T6
-end
+@_laserfield_struct GaussianLaserField σ
+
 _envelope(lf::GaussianLaserField,tr) = (env = lf.E0 * exp(-tr^2/(2*lf.σ^2)); (env, -env * tr/lf.σ^2))
 # F[exp(-z*t^2)] = exp(-w^2/4z)/sqrt(2z) (for real(z)>0)
 _envelope_fourier(lf::GaussianLaserField,ω) = (z = 0.5/lf.σ^2 - 1im*lf.chirp; lf.E0 * exp(-ω^2/4z) / sqrt(2z))
@@ -116,11 +137,7 @@ start_time(lf::GaussianLaserField) = lf.t0 - GAUSSIAN_TIME_CUTOFF_SIGMA*lf.σ
 end_time(  lf::GaussianLaserField) = lf.t0 + GAUSSIAN_TIME_CUTOFF_SIGMA*lf.σ
 Teff(lf::GaussianLaserField,n_photon) = lf.σ * sqrt(π/n_photon)
 
-Base.@kwdef struct SinExpLaserField{T1,T2,T3,T4,T5,T6,T7} <: LaserField
-    @_standard_lf_props
-    T::T6
-    exponent::T7
-end
+@_laserfield_struct SinExpLaserField T exponent
 
 function expiatbt2_intT(a,b,T)
     # returns the result of the integral Int(exp(i*(a*t+b*t**2)),{t,-T/2,T/2}) / sqrt(2π)
@@ -162,17 +179,8 @@ Teff(lf::SinExpLaserField,n_photon) = lf.T * gamma(0.5 + n_photon*lf.exponent) /
 
 abstract type FlatTopLaserField <: LaserField end
 
-Base.@kwdef struct LinearFlatTopLaserField{T1,T2,T3,T4,T5,T6,T7} <: FlatTopLaserField
-    @_standard_lf_props
-    Tflat::T6
-    Tramp::T7
-end
-
-Base.@kwdef struct Linear2FlatTopLaserField{T1,T2,T3,T4,T5,T6,T7} <: FlatTopLaserField
-    @_standard_lf_props
-    Tflat::T6
-    Tramp::T7
-end
+@_laserfield_struct LinearFlatTopLaserField<:FlatTopLaserField Tflat Tramp
+@_laserfield_struct Linear2FlatTopLaserField<:FlatTopLaserField Tflat Tramp
 
 start_time(lf::FlatTopLaserField) = lf.t0 - lf.Tflat/2 - lf.Tramp
 end_time(  lf::FlatTopLaserField) = lf.t0 + lf.Tflat/2 + lf.Tramp
@@ -207,15 +215,7 @@ end
 Teff(lf::LinearFlatTopLaserField,n_photon) = lf.Tflat + 2*lf.Tramp / (1+2*n_photon)
 Teff(lf::Linear2FlatTopLaserField,n_photon) = lf.Tflat + 2*lf.Tramp * gamma(0.5+2n_photon) / (sqrt(π)*gamma(1+2n_photon))
 
-Base.@kwdef struct InterpolatingLaserField{T1,T2,T3,T4,T5,T6,T7,T8,T9,T10} <: LaserField
-    @_standard_lf_props
-    duration::T6
-    datafile::String
-    Efun::T7
-    Afun::T8
-    start_time::T9
-    end_time::T10
-end
+@_laserfield_struct InterpolatingLaserField duration datafile::String Efun Afun start_time end_time
 
 function InterpolatingLaserField(datafile; is_vecpot)
     # print('# Reading laser_field from file:', datafile)
@@ -314,6 +314,8 @@ macro select_param(nt,options)
 end
 
 # General function to make a laser field with the parameter conventions from fortran laserfields library
+make_laserfield(args...; kwargs...) = LaserField(args...; kwargs...)
+
 LaserField(d) = LaserField(; d...)
 
 function LaserField(; form::String, is_vecpot::Bool, pargs...)
