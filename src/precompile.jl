@@ -49,8 +49,7 @@ using SnoopPrecompile
         lf = make_laserfield(form="gaussianI", is_vecpot=true, phase_pi=1, duration_as=100.,
                             peak_time_as=400, intensity_Wcm2=1e14, lambda_nm=12., linear_chirp_rate_w0as=0.)
         lf = GaussianLaserField(; is_vecpot=true, ϕ0=π, E0=1., ω0=1., t0=0., σ=1., chirp=0.)
-        ts = range(start=start_time(lf), stop=end_time(lf), step=TX(lf)/100)
+        ts = start_time(lf):TX(lf)/100:end_time(lf)
         lf.(ts)
     end
-
 end
