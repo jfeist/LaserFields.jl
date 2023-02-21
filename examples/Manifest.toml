@@ -452,10 +452,10 @@ uuid = "984bce1d-4616-540c-a9ee-88d1112d94c9"
 version = "0.4.5"
 
 [[deps.LaserFields]]
-deps = ["DataInterpolations", "DelimitedFiles", "SpecialFunctions"]
+deps = ["DataInterpolations", "DelimitedFiles", "SnoopPrecompile", "SpecialFunctions"]
 path = ".."
 uuid = "dfcd5af1-1e31-431a-b1a1-3c72ddca0e1b"
-version = "0.1.0"
+version = "0.1.1"
 
 [[deps.Latexify]]
 deps = ["Formatting", "InteractiveUtils", "LaTeXStrings", "MacroTools", "Markdown", "OrderedCollections", "Printf", "Requires"]
