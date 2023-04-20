@@ -1,6 +1,6 @@
 using SnoopPrecompile
 
-@precompile_setup begin
+@precompile_setup let
     general_args = (is_vecpot=true,E0=1.5,ω0=0.12,t0=500.,chirp=0.,ϕ0=0.8π)
     test_fields = [
         GaussianLaserField(;      general_args...,σ=100.),
