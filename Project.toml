@@ -11,6 +11,7 @@ SpecialFunctions = "276daf66-3868-5448-9aa4-cd146d93841b"
 
 [compat]
 DataInterpolations = "3, 4"
+DelimitedFiles = "1"
 SnoopPrecompile = "1"
 SpecialFunctions = "2"
 julia = "1.6"
