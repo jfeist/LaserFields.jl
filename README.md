@@ -31,6 +31,6 @@ the electric field, i.e., is equivalent to `E_field(lf,t)`. The notebooks in the
 set of fields through a YAML configuration file.
 
 The "effective" duration of the pulse for n-photon processes can be obtained as
-`lf.Teff(n_photon)`, which is the integral over the pulse intensity envelope to
+`Teff(lf,n_photon)`, which is the integral over the pulse intensity envelope to
 the n-th power (i.e., electric field envelope to the (2n)th power) over the
 pulse, see, e.g., https://doi.org/10.1103/PhysRevA.77.043420 (Eq. 14).
