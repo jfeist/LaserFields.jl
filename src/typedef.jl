@@ -70,3 +70,13 @@ function E_fourier(lf::LaserField,ω)
 end
 
 A_fourier(lf::LaserField,ω) = E_fourier(lf,ω) / (-1im*ω)
+
+struct LaserFieldCollection{T} <: LaserField
+    lfs::T
+end
+start_time(lf::LaserFieldCollection) = minimum(start_time, lf.lfs)
+end_time(lf::LaserFieldCollection) = maximum(end_time, lf.lfs)
+TX(lf::LaserFieldCollection) = minimum(TX, lf.lfs)
+for f in (:E_field, :A_field, :E_fourier, :A_fourier, :envelope)
+    @eval $f(lf::LaserFieldCollection, t) = sum(Base.Fix2($f,t), lf.lfs)
+end

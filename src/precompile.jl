@@ -10,17 +10,18 @@ using SnoopPrecompile
         LinearFlatTopLaserField(; general_args...,Tflat=400.,Tramp=150),
         Linear2FlatTopLaserField(;general_args...,Tflat=400.,Tramp=150),
     ]
+    lfc = LaserFieldCollection(test_fields)
 
-    @precompile_all_calls begin    
+    @precompile_all_calls begin
         ts = LinRange(0,1000,1001)
-        for lf in test_fields
+        for lf in (test_fields..., lfc)
             lf.(ts)
             A_field.(lf,ts)
             try
                 envelope.(lf,ts)
             catch
             end
-        end        
+        end
         test_fields_fourier = filter(test_fields) do lf
             try
                 E_fourier(lf,1.)

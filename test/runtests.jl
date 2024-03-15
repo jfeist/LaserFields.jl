@@ -24,6 +24,19 @@ using Test
         @test lf.ϕ0 == 0.8π
     end
 
+    @testset "LaserFieldCollection" begin
+        lfc = LaserFieldCollection(test_fields)
+        @test lfc isa LaserFieldCollection
+        @test length(lfc.lfs) == 6
+        @test lfc(500.) == sum(lf(500.) for lf in test_fields)
+        @test E_field(lfc, 300.) == sum(E_field(lf, 300.) for lf in test_fields)
+        @test A_field(lfc, 300.) == sum(A_field(lf, 300.) for lf in test_fields)
+        @test E_fourier(lfc, 1.) == sum(E_fourier(lf, 1.) for lf in test_fields)
+        @test A_fourier(lfc, 1.) == sum(A_fourier(lf, 1.) for lf in test_fields)
+        @test start_time(lfc) == minimum(start_time, test_fields)
+        @test end_time(lfc) == maximum(end_time, test_fields)
+    end
+
     @testset "read-in field vecpot" begin
         lf = InterpolatingLaserField("laserdat.dat", is_vecpot=true)
         @test lf.is_vecpot == true
