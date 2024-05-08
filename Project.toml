@@ -10,7 +10,7 @@ SnoopPrecompile = "66db9d55-30c0-4569-8b51-7e840670fc0c"
 SpecialFunctions = "276daf66-3868-5448-9aa4-cd146d93841b"
 
 [compat]
-DataInterpolations = "3, 4"
+DataInterpolations = "3, 4, 5"
 DelimitedFiles = "1"
 SnoopPrecompile = "1"
 SpecialFunctions = "2"
