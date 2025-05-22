@@ -1,4 +1,5 @@
 using LaserFields
+using FFTW
 using Test
 
 @testset "LaserFields.jl" begin
@@ -105,6 +106,42 @@ using Test
             for (n_photon, T) in enumerate(Teffs)
                 lf = LaserField(form=form, is_vecpot=true, duration=1000., rampon=100., E0=1., omega=1., t0=0.)
                 @test Teff(lf,n_photon) ≈ T
+            end
+        end
+    end
+
+    @testset "Fourier transform" begin
+        # Test the Fourier transform of the laser fields
+        # Compare the analytical and numerical Fourier transforms
+
+        @testset "chirp $(chirp)" for chirp in (-1e-3, -1e-20, 0, 1e-20, 1e-3)
+            general_args = (is_vecpot=true, E0=1.5, ω0=0.12, t0=500., chirp=chirp, ϕ0=0.8π)
+            @testset "laserfield($lf)" for lf in [
+                GaussianLaserField(;      general_args..., σ=100.),
+                SinExpLaserField(;        general_args..., T=800., exponent=2),
+                SinExpLaserField(;        general_args..., T=800., exponent=4),
+                SinExpLaserField(;        general_args..., T=800., exponent=7),
+                LinearFlatTopLaserField(; general_args..., Tflat=400., Tramp=150),
+                Linear2FlatTopLaserField(;general_args..., Tflat=400., Tramp=150),
+                ]
+                if lf isa Union{LinearFlatTopLaserField,Linear2FlatTopLaserField} && chirp != 0
+                    # Skip the test for LinearFlatTopLaserField with non-zero chirp
+                    # because the analytical Fourier transform is not implemented for this case
+                    continue
+                end
+                T = end_time(lf) - start_time(lf)
+                t0 = start_time(lf) - 5T
+                t1 = end_time(lf) + 5T
+                dt = LaserFields.TX(lf) / 100
+                ts = t0:dt:t1
+                ωs = 2π * fftfreq(length(ts), 1/dt)
+                Eω = E_fourier.(lf,ωs)
+                Eω2 = fft(lf.(ts)) .* dt ./ sqrt(2π)
+                # FFT acts as if ts[1] was t=0, shift to the correct value
+                @. Eω2 *= exp(-1im * ts[1] * ωs)
+
+                atol = lf isa LinearFlatTopLaserField ? 0.02 : 1e-4
+                @test all(isapprox.(Eω, Eω2, atol=atol))
             end
         end
     end

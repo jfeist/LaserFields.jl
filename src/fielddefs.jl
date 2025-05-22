@@ -47,13 +47,18 @@ Teff(lf::GaussianLaserField,n_photon) = lf.σ * sqrt(π/n_photon)
 
 "returns the result of the integral Int(exp(i*(a*t+b*t**2)),{t,-T/2,T/2}) / sqrt(2π)"
 function expiatbt2_intT(a,b,T)
-    iszero(b) && return sqrt(2/π)/a * sin(a*T/2)
+    if abs(b) * T^2 < 1e-8
+        # use first-order expansion for small b to avoid numerical divergence
+        x1 = 2im * b / a^2
+        x2 = x1 * cos(a * T / 2) + (1 - x1 + 0.25im * b * T^2) * sinc(a * T / 2π)
+        return x2 * T / sqrt(2π)
+    end
     t1 = inv(sqrt(complex(b))) # b might be negative
     zz1 = (1+1im)/4 * t1 # = (1+1im)/(2*sqrt(4b))
     z34 = (-1+1im)/sqrt(8) * t1 # == (-1)**(3/4) / sqrt(4b)
     # the sign(b) is surprisingly not given by mathematica - not sure yet why it misses it,
     # but it's necessary for agreement with the numerical fourier transform
-    sign(b) * (erf(z34*(a-b*T)) - erf(z34*(a+b*T))) * zz1 * cis(-a^2/4b)
+    (erf(z34*(a-b*T)) - erf(z34*(a+b*T))) * zz1 * cis(-a^2/4b)
 end
 
 function _envelope(lf::SinExpLaserField,tr)
