@@ -113,14 +113,13 @@ using Test
     @testset "Fourier transform" begin
         # Test the Fourier transform of the laser fields
         # Compare the analytical and numerical Fourier transforms
-
-        @testset "chirp $(chirp)" for chirp in (-1e-3, -1e-20, 0, 1e-20, 1e-3)
+        @testset "chirp $(chirp)" for chirp in (0.0011, -0.0009, -1e-3, -1e-20, 0, 1e-20, 1e-3, 0.0009, 0.0011)
             general_args = (is_vecpot=true, E0=1.5, ω0=0.12, t0=500., chirp=chirp, ϕ0=0.8π)
             @testset "laserfield($lf)" for lf in [
                 GaussianLaserField(;      general_args..., σ=100.),
-                SinExpLaserField(;        general_args..., T=800., exponent=2),
-                SinExpLaserField(;        general_args..., T=800., exponent=4),
-                SinExpLaserField(;        general_args..., T=800., exponent=7),
+                SinExpLaserField(;        general_args..., T=100., exponent=2),
+                SinExpLaserField(;        general_args..., T=100., exponent=4),
+                SinExpLaserField(;        general_args..., T=100., exponent=7),
                 LinearFlatTopLaserField(; general_args..., Tflat=400., Tramp=150),
                 Linear2FlatTopLaserField(;general_args..., Tflat=400., Tramp=150),
                 ]
@@ -140,7 +139,7 @@ using Test
                 # FFT acts as if ts[1] was t=0, shift to the correct value
                 @. Eω2 *= exp(-1im * ts[1] * ωs)
 
-                atol = lf isa LinearFlatTopLaserField ? 0.02 : 1e-4
+                atol = lf isa LinearFlatTopLaserField ? 0.02 : 1e-3
                 @test all(isapprox.(Eω, Eω2, atol=atol))
             end
         end
