@@ -25,6 +25,49 @@ using Test
         @test lf.ϕ0 == 0.8π
     end
 
+    @testset "Time-domain field values" begin
+        sample_t_shifts = (-0.2, 0.0, 0.3)
+        expected_E_values = [
+            [-0.4733721103340174, 1.213525491562421, 0.43939711942241655],
+            [-0.46657740126715147, 1.213525491562421, 0.4560190763122897],
+            [-0.4696176702845257, 1.213525491562421, 0.44856301902567197],
+            [-0.47415631450844775, 1.213525491562421, 0.4374727545356417],
+            [-0.4635254915624215, 1.213525491562421, 0.4635254915624302],
+            [-0.4635254915624215, 1.213525491562421, 0.4635254915624302],
+        ]
+        expected_A_values = [
+            [11.823200448244128, 7.347315653655915, -11.742442578919206],
+            [11.868113281037923, 7.347315653655915, -11.843028666243946],
+            [11.848054069403913, 7.347315653655915, -11.798022564282457],
+            [11.818028803324419, 7.347315653655915, -11.730833895083071],
+            [11.888206453689419, 7.347315653655915, -11.888206453689396],
+            [11.888206453689419, 7.347315653655915, -11.888206453689396],
+        ]
+
+        for (i, lf) in enumerate(test_fields)
+            TX = LaserFields.TX(lf)
+            sample_times = [lf.t0 + shift * TX for shift in sample_t_shifts]
+            for (j, t) in enumerate(sample_times)
+                @test E_field(lf, t) ≈ expected_E_values[i][j] atol=1e-12
+                @test A_field(lf, t) ≈ expected_A_values[i][j] atol=1e-12
+            end
+
+            t_before = start_time(lf) - 0.1 * TX
+            t_after = end_time(lf) + 0.1 * TX
+            if lf isa GaussianLaserField
+                @test abs(E_field(lf, t_before)) < 1e-12
+                @test abs(E_field(lf, t_after)) < 1e-12
+                @test abs(A_field(lf, t_before)) < 1e-12
+                @test abs(A_field(lf, t_after)) < 1e-12
+            else
+                @test E_field(lf, t_before) == 0
+                @test E_field(lf, t_after) == 0
+                @test A_field(lf, t_before) == 0
+                @test A_field(lf, t_after) == 0
+            end
+        end
+    end
+
     @testset "LaserFieldCollection" begin
         lfc = LaserFieldCollection(test_fields)
         @test lfc isa LaserFieldCollection
