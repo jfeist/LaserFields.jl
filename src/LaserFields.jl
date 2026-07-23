@@ -5,7 +5,7 @@ using DelimitedFiles
 using DataInterpolations
 
 export LaserField, LaserFieldCollection, make_laserfield
-export E_field, A_field, E_fourier, A_fourier
+export E_field, A_field, E_fourier, A_fourier, E_posfreq, A_posfreq
 export start_time, end_time, envelope, Teff
 
 include("constants.jl")
