@@ -186,3 +186,5 @@ end_time(  lf::InterpolatingLaserField) = lf.end_time
 
 E_field(lf::InterpolatingLaserField,t) = (start_time(lf) <= t <= end_time(lf)) ? lf.Efun(t) : 0.
 A_field(lf::InterpolatingLaserField,t) = (start_time(lf) <= t <= end_time(lf)) ? lf.Afun(t) : 0.
+E_posfreq(lf::InterpolatingLaserField,t) = error("positive-frequency decomposition not implemented for readin laser fields")
+A_posfreq(lf::InterpolatingLaserField,t) = error("positive-frequency decomposition not implemented for readin laser fields")

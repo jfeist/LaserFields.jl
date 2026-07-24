@@ -96,6 +96,6 @@ end
 start_time(lf::LaserFieldCollection) = minimum(start_time, lf.lfs)
 end_time(lf::LaserFieldCollection) = maximum(end_time, lf.lfs)
 TX(lf::LaserFieldCollection) = minimum(TX, lf.lfs)
-for f in (:E_field, :A_field, :E_fourier, :A_fourier, :envelope)
+for f in (:E_field, :A_field, :E_fourier, :A_fourier, :E_posfreq, :A_posfreq, :envelope)
     @eval $f(lf::LaserFieldCollection, t) = sum(Base.Fix2($f,t), lf.lfs)
 end

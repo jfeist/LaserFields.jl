@@ -51,6 +51,13 @@ function LaserField(; form::String, is_vecpot::Bool, pargs...)
         return InterpolatingLaserField(args.datafile; is_vecpot=is_vecpot)
     end
 
+    if is_vecpot && form == "linear"
+        error("envelope 'linear' cannot be used with is_vecpot=true, as the E-field would be discontinuous.")
+    end
+    if is_vecpot && form == "sin_exp" && args.form_exponent <= 1
+        error("envelope 'sin_exp' with is_vecpot=true requires form_exponent > 1 for continuous E-field.")
+    end
+
     E0 = @select_param args (E0 => args.E0, intensity_Wcm2 => sqrt(args.intensity_Wcm2 * au_wcm2toel2))
     ω0 = @select_param args (ω0 => args.ω0, omega => args.omega, lambda_nm => 2π*au_c / (args.lambda_nm * au_nm))
     ϕ0 = @select_param args (ϕ0 => args.ϕ0, phase_pi => π*args.phase_pi, 0.)

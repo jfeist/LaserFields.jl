@@ -7,22 +7,26 @@ using Test
     using LaserFields: GaussianLaserField, SinExpLaserField, LinearFlatTopLaserField, Linear2FlatTopLaserField, InterpolatingLaserField
 
     general_args = (is_vecpot=true, E0=1.5, ω0=0.12, t0=500., chirp=0., ϕ0=0.8π)
+    general_args_nonvec = (is_vecpot=false, E0=1.5, ω0=0.12, t0=500., chirp=0., ϕ0=0.8π)
     test_fields = [
         GaussianLaserField(;      general_args..., σ=100.),
         SinExpLaserField(;        general_args..., T=800., exponent=2),
         SinExpLaserField(;        general_args..., T=800., exponent=4),
         SinExpLaserField(;        general_args..., T=800., exponent=7),
-        LinearFlatTopLaserField(; general_args..., Tflat=400., Tramp=150),
+        LinearFlatTopLaserField(; general_args_nonvec..., Tflat=400., Tramp=150),
         Linear2FlatTopLaserField(;general_args..., Tflat=400., Tramp=150),
     ]
 
-    @testset "General arguments" for lf in test_fields
-        @test lf.is_vecpot == true
+    @testset "General arguments" begin
+        expected_is_vecpot = [true, true, true, true, false, true]
+        for (i, lf) in enumerate(test_fields)
+            @test lf.is_vecpot == expected_is_vecpot[i]
         @test lf.E0 == 1.5
         @test lf.ω0 == 0.12
         @test lf.t0 == 500
         @test lf.chirp == 0.0
         @test lf.ϕ0 == 0.8π
+        end
     end
 
     @testset "Time-domain field values" begin
@@ -32,7 +36,7 @@ using Test
             [-0.46657740126715147, 1.213525491562421, 0.4560190763122897],
             [-0.4696176702845257, 1.213525491562421, 0.44856301902567197],
             [-0.47415631450844775, 1.213525491562421, 0.4374727545356417],
-            [-0.4635254915624215, 1.213525491562421, 0.4635254915624302],
+            [1.4265847744427302, 0.8816778784387098, -1.4265847744427274],
             [-0.4635254915624215, 1.213525491562421, 0.4635254915624302],
         ]
         expected_A_values = [
@@ -40,7 +44,7 @@ using Test
             [11.868113281037923, 7.347315653655915, -11.843028666243946],
             [11.848054069403913, 7.347315653655915, -11.798022564282457],
             [11.818028803324419, 7.347315653655915, -11.730833895083071],
-            [11.888206453689419, 7.347315653655915, -11.888206453689396],
+            [0.0, 0.0, 0.0],
             [11.888206453689419, 7.347315653655915, -11.888206453689396],
         ]
         expected_E_posfreq_values = [
@@ -48,7 +52,7 @@ using Test
             [ComplexF64(-0.23328870063357574, 0.7114637065144673), ComplexF64(0.6067627457812105, 0.4408389392193549), ComplexF64(0.22800953815614486, -0.7115150383005721)],
             [ComplexF64(-0.23480883514226286, 0.7096391697345191), ComplexF64(0.6067627457812105, 0.4408389392193549), ComplexF64(0.22428150951283599, -0.7097408968808412)],
             [ComplexF64(-0.23707815725422388, 0.7069101152176173), ComplexF64(0.6067627457812105, 0.4408389392193549), ComplexF64(0.21873637726782086, -0.7070857016210783)],
-            [ComplexF64(-0.23176274578121075, 0.7132923872213651), ComplexF64(0.6067627457812105, 0.4408389392193549), ComplexF64(0.2317627457812151, -0.7132923872213638)],
+            [ComplexF64(0.7132923872213651, 0.23176274578121075), ComplexF64(0.4408389392193549, -0.6067627457812105), ComplexF64(-0.7132923872213637, -0.23176274578121514)],
             [ComplexF64(-0.23176274578121075, 0.7132923872213651), ComplexF64(0.6067627457812105, 0.4408389392193549), ComplexF64(0.2317627457812151, -0.7132923872213638)],
         ]
         expected_A_posfreq_values = [
@@ -56,7 +60,7 @@ using Test
             [ComplexF64(5.934056640518961, 1.9280918810662835), ComplexF64(3.6736578268279576, -5.0563562148434205), ComplexF64(-5.921514333121973, -1.9240166383568338)],
             [ComplexF64(5.924027034701957, 1.924833064590886), ComplexF64(3.6736578268279576, -5.0563562148434205), ComplexF64(-5.899011282141228, -1.9167049538678569)],
             [ComplexF64(5.909014401662209, 1.9199551644239556), ComplexF64(3.6736578268279576, -5.0563562148434205), ComplexF64(-5.865416947541536, -1.9057894928745776)],
-            [ComplexF64(5.944103226844709, 1.9313562148434231), ComplexF64(3.6736578268279576, -5.0563562148434205), ComplexF64(-5.944103226844698, -1.9313562148434595)],
+            [ComplexF64(0.0, 0.0), ComplexF64(0.0, 0.0), ComplexF64(0.0, 0.0)],
             [ComplexF64(5.944103226844709, 1.9313562148434231), ComplexF64(3.6736578268279576, -5.0563562148434205), ComplexF64(-5.944103226844698, -1.9313562148434595)],
         ]
 
@@ -65,11 +69,13 @@ using Test
             sample_times = [lf.t0 + shift * TX for shift in sample_t_shifts]
             for (j, t) in enumerate(sample_times)
                 @test E_field(lf, t) ≈ expected_E_values[i][j] atol=1e-12
-                @test A_field(lf, t) ≈ expected_A_values[i][j] atol=1e-12
                 @test E_posfreq(lf, t) ≈ expected_E_posfreq_values[i][j] atol=1e-12
-                @test A_posfreq(lf, t) ≈ expected_A_posfreq_values[i][j] atol=1e-12
                 @test E_field(lf, t) ≈ E_posfreq(lf, t) + conj(E_posfreq(lf, t)) atol=1e-12
-                @test A_field(lf, t) ≈ A_posfreq(lf, t) + conj(A_posfreq(lf, t)) atol=1e-12
+                if lf.is_vecpot
+                    @test A_field(lf, t) ≈ expected_A_values[i][j] atol=1e-12
+                    @test A_posfreq(lf, t) ≈ expected_A_posfreq_values[i][j] atol=1e-12
+                    @test A_field(lf, t) ≈ A_posfreq(lf, t) + conj(A_posfreq(lf, t)) atol=1e-12
+                end
             end
 
             t_before = start_time(lf) - 0.1 * TX
@@ -82,21 +88,35 @@ using Test
             else
                 @test E_field(lf, t_before) == 0
                 @test E_field(lf, t_after) == 0
-                @test A_field(lf, t_before) == 0
-                @test A_field(lf, t_after) == 0
+                if lf.is_vecpot
+                    @test A_field(lf, t_before) == 0
+                    @test A_field(lf, t_after) == 0
+                end
             end
         end
     end
 
     @testset "LaserFieldCollection" begin
         lfc = LaserFieldCollection(test_fields)
+        lfc_vecpot = LaserFieldCollection((test_fields[1], test_fields[2], test_fields[3], test_fields[4], test_fields[6]))
+        sample_t_shifts = (-0.2, 0.0, 0.3)
         @test lfc isa LaserFieldCollection
         @test length(lfc.lfs) == 6
         @test lfc(500.) == sum(lf(500.) for lf in test_fields)
         @test E_field(lfc, 300.) == sum(E_field(lf, 300.) for lf in test_fields)
-        @test A_field(lfc, 300.) == sum(A_field(lf, 300.) for lf in test_fields)
+        @test E_posfreq(lfc, 300.) == sum(E_posfreq(lf, 300.) for lf in test_fields)
+        for shift in sample_t_shifts
+            t = lfc.lfs[1].t0 + shift * LaserFields.TX(lfc)
+            @test E_field(lfc, t) ≈ E_posfreq(lfc, t) + conj(E_posfreq(lfc, t)) atol=1e-12
+        end
+        @test A_field(lfc_vecpot, 300.) == sum(A_field(lf, 300.) for lf in (test_fields[1], test_fields[2], test_fields[3], test_fields[4], test_fields[6]))
+        @test A_posfreq(lfc_vecpot, 300.) == sum(A_posfreq(lf, 300.) for lf in (test_fields[1], test_fields[2], test_fields[3], test_fields[4], test_fields[6]))
+        for shift in sample_t_shifts
+            t = lfc_vecpot.lfs[1].t0 + shift * LaserFields.TX(lfc_vecpot)
+            @test A_field(lfc_vecpot, t) ≈ A_posfreq(lfc_vecpot, t) + conj(A_posfreq(lfc_vecpot, t)) atol=1e-12
+        end
         @test E_fourier(lfc, 1.) == sum(E_fourier(lf, 1.) for lf in test_fields)
-        @test A_fourier(lfc, 1.) == sum(A_fourier(lf, 1.) for lf in test_fields)
+        @test A_fourier(lfc_vecpot, 1.) == sum(A_fourier(lf, 1.) for lf in (test_fields[1], test_fields[2], test_fields[3], test_fields[4], test_fields[6]))
         @test start_time(lfc) == minimum(start_time, test_fields)
         @test end_time(lfc) == maximum(end_time, test_fields)
     end
@@ -113,6 +133,8 @@ using Test
         @test lf.datafile == "laserdat.dat"
         @test start_time(lf) == 0.0
         @test end_time(lf) == 700.0
+        @test_throws ErrorException E_posfreq(lf, 350.0)
+        @test_throws ErrorException A_posfreq(lf, 350.0)
     end
 
     @testset "read-in field e-field" begin
@@ -127,6 +149,8 @@ using Test
         @test lf.datafile == "laserdat.dat"
         @test start_time(lf) == 0.0
         @test end_time(lf) == 700.0
+        @test_throws ErrorException E_posfreq(lf, 350.0)
+        @test_throws ErrorException A_posfreq(lf, 350.0)
     end
 
     @testset "LaserField" begin
@@ -139,6 +163,12 @@ using Test
             @test lf.t0 == 400. * LaserFields.au_as
             @test lf(lf.t0) == lf.E0
             @test lf.ϕ0 ≈ π
+        end
+        @testset "continuity constraints" begin
+            @test_throws ErrorException LaserField(form="linear", is_vecpot=true, phase_pi=0.0, duration_as=100., rampon_as=20.,
+                                                   peak_time_as=400, intensity_Wcm2=1e14, lambda_nm=12., linear_chirp_rate_w0as=0.)
+            @test_throws ErrorException LaserField(form="sin_exp", is_vecpot=true, phase_pi=0.0, duration_as=100., form_exponent=1.0,
+                                                   peak_time_as=400, intensity_Wcm2=1e14, lambda_nm=12., linear_chirp_rate_w0as=0.)
         end
         @testset "overspecified parameters" begin
             @test_throws ErrorException LaserField(form="gaussianI", is_vecpot=true, phase_pi=0.5, duration=10., duration_as=100.,
@@ -167,7 +197,8 @@ using Test
                      "linear2"    => [                 1075,            1054.6875,         1045.1171875,      1039.2761230469,      1035.2394104004 ])
         for (form, Teffs) in refTs
             for (n_photon, T) in enumerate(Teffs)
-                lf = LaserField(form=form, is_vecpot=true, duration=1000., rampon=100., E0=1., omega=1., t0=0.)
+                is_vecpot = form == "linear" ? false : true
+                lf = LaserField(form=form, is_vecpot=is_vecpot, duration=1000., rampon=100., E0=1., omega=1., t0=0.)
                 @test Teff(lf,n_photon) ≈ T
             end
         end
@@ -183,7 +214,7 @@ using Test
                 SinExpLaserField(;        general_args..., T=100., exponent=2),
                 SinExpLaserField(;        general_args..., T=100., exponent=4),
                 SinExpLaserField(;        general_args..., T=100., exponent=7),
-                LinearFlatTopLaserField(; general_args..., Tflat=400., Tramp=150),
+                LinearFlatTopLaserField(; merge(general_args, (is_vecpot=false,))..., Tflat=400., Tramp=150),
                 Linear2FlatTopLaserField(;general_args..., Tflat=400., Tramp=150),
                 ]
                 if lf isa Union{LinearFlatTopLaserField,Linear2FlatTopLaserField} && chirp != 0
